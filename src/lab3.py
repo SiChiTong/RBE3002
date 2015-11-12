@@ -64,19 +64,28 @@ def mapHandler(msg):
                 float64 w
     int8[] data
     ' 
-
-def publishTile(x, y, state):
-    DBPrint('publishTile')
+# Creates and adds a cell to its corresponding list to be published in the near future
+def publishCell(x, y, state):
+    DBPrint('publishCell')
     global fully_explored_cells, known_cells, path_cells
 
     if state == 'fully_explored':
-        cells.append()
+        cells.append(GridCell(x, y))
     elif state == 'known':
-        cells.append()
+        cells.append(GridCell(x, y))
     elif state == 'path':
-        cells.append()
+        cells.append(GridCell(x, y))
+
+# Publishes a message to display all of the cells
+def publishCells():
+    DBPrint('publishCells')
 
 
+# If you need something to happen repeatedly at a fixed interval, write the code here.
+# rospy.Timer(rospy.Duration(.01), timerCallback)
+def timerCallback(event):
+    DBPrint("timerCallback")
+    publishTiles()
     
     
 def DBPrint(param):
@@ -85,11 +94,12 @@ def DBPrint(param):
 
 def main():
     DBPrint('main')
+    global vel_pub
 
     rospy.init_node('lab3')
 
     # Publisher for commanding robot motion
-    pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist)
+    vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist)
     
     # Subscribe to bumper changes
     rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, bumperHandler, queue_size=1) 
@@ -118,6 +128,9 @@ def main():
     
     # Wait for an odom event to init pose
     rospy.sleep(rospy.Duration(1))
+
+    # Update the map cells every second
+    rospy.Timer(rospy.Duration(1), timerCallback)
     
     rospy.spin()
 

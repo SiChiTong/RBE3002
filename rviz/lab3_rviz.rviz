@@ -10,7 +10,6 @@ Panels:
         - /Map1
         - /Local Planning1
         - /Global Planning1
-        - /GridCells1
       Splitter Ratio: 0.5
     Tree Height: 815
   - Class: rviz/Selection
@@ -374,7 +373,21 @@ Visualization Manager:
       Color: 25; 255; 0
       Enabled: true
       Name: GridCells
-      Topic: /tiles
+      Topic: /fully_explored_cells
+      Value: true
+    - Alpha: 1
+      Class: rviz/GridCells
+      Color: 25; 255; 0
+      Enabled: true
+      Name: GridCells
+      Topic: /path_cells
+      Value: true
+    - Alpha: 1
+      Class: rviz/GridCells
+      Color: 25; 255; 0
+      Enabled: true
+      Name: GridCells
+      Topic: /known_cells
       Value: true
   Enabled: true
   Global Options:
