@@ -7,8 +7,10 @@ Panels:
         - /Global Options1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /Map1
         - /Local Planning1
         - /Global Planning1
+        - /GridCells1
       Splitter Ratio: 0.5
     Tree Height: 815
   - Class: rviz/Selection
@@ -353,10 +355,10 @@ Visualization Manager:
     - Arrow Length: 0.2
       Class: rviz/PoseArray
       Color: 0; 192; 0
-      Enabled: true
+      Enabled: false
       Name: ParticleCloud
       Topic: /particlecloud
-      Value: true
+      Value: false
     - Angle Tolerance: 0.1
       Class: rviz/Odometry
       Color: 48; 48; 48
@@ -367,6 +369,13 @@ Visualization Manager:
       Position Tolerance: 0.1
       Topic: /odom
       Value: false
+    - Alpha: 1
+      Class: rviz/GridCells
+      Color: 25; 255; 0
+      Enabled: true
+      Name: GridCells
+      Topic: /tiles
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -387,7 +396,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 16.8201
+      Distance: 22.1397
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
@@ -399,10 +408,10 @@ Visualization Manager:
         Z: -0.424504
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 1.5298
+      Pitch: 1.5698
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 6.14821
+      Yaw: 5.89321
     Saved: ~
 Window Geometry:
   Displays:

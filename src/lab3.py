@@ -4,7 +4,7 @@ from kobuki_msgs.msg import BumperEvent
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Quaternion
 from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import Odometry, OccupancyGrid
+from nav_msgs.msg import Odometry, OccupancyGrid, GridCells
 from std_msgs.msg import Empty
 
 from tf.transformations import euler_from_quaternion
@@ -64,6 +64,20 @@ def mapHandler(msg):
                 float64 w
     int8[] data
     ' 
+
+def publishTile(x, y, state):
+    DBPrint('publishTile')
+    global fully_explored_cells, known_cells, path_cells
+
+    if state == 'fully_explored':
+        cells.append()
+    elif state == 'known':
+        cells.append()
+    elif state == 'path':
+        cells.append()
+
+
+    
     
 def DBPrint(param):
     if DEBUG == 1:
@@ -72,7 +86,7 @@ def DBPrint(param):
 def main():
     DBPrint('main')
 
-    rospy.init_node('lab3_tchaydon')
+    rospy.init_node('lab3')
 
     # Publisher for commanding robot motion
     pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist)
@@ -88,6 +102,12 @@ def main():
 
     # Subscribe to NavToGoal stuff
     rospy.Subscriber('/move_base_simple/goal', PoseStamped, goalHandler)
+
+    # Create tile publishers
+    rospy.Publisher('/fully_explored_cells', GridCells, queue_size=1)
+    rospy.Publisher('/known_cells', GridCells, queue_size=1)
+    rospy.Publisher('/path_cells', GridCells, queue_size=1)
+    
 
     # Create Odemetry listener and boadcaster 
     odom_list = tf.TransformListener()
