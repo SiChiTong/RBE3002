@@ -1,0 +1,5 @@
+export TURTLEBOT_STAGE_MAP_FILE=~/stagemaps/simple_map.yaml
+export TURTLEBOT_STAGE_WORLD_FILE=~/stagemaps/simple_map.world
+
+export TURTLEBOT_STAGE_MAP_FILE=~/stagemaps/AK220Map.yaml
+export TURTLEBOT_STAGE_WORLD_FILE=~/stagemaps/AK220Map.world
