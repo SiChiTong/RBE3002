@@ -1,33 +1,36 @@
+#!/usr/bin/python
 import rospy, tf, time, math, roslib
 from kobuki_msgs.msg import BumperEvent
 
-from geometry_msgs.msg import Twist
-from geometry_msgs.msg import Quaternion
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Twist, Point, Quaternion, PoseStamped
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, Header
 
 from tf.transformations import euler_from_quaternion
 
 DEBUG = 0
+CELL_WIDTH = 0.3
+CELL_HEIGHT = 0.3
+
+expanded_cells = []; frontier_cells = []; unexplored_cells = []
 
 #Odometry Callback function.
 def odomHandler(msg):
     DBPrint("odomHandler")
-    global pose, x, y, theta
-    pose = msg.pose
+    global x, y, theta
 
     # Update the x, y, and theta globals every time something changes
-    quat = pose.pose.orientation
+    quat = msg.pose.pose.orientation
     q = [quat.x, quat.y, quat.z, quat.w]
     roll, pitch, yaw = euler_from_quaternion(q)
 
-    x = pose.pose.position.x
-    y = pose.pose.position.y
+    x = msg.pose.pose.position.x
+    y = msg.pose.pose.position.y
     theta = yaw 
 
 def goalHandler(msg):
     DBPrint('goalHandler')
+    global goal_x, goal_y, goal_theta 
     pose = msg.pose
 
     # Set the goal_x, goal_y, and goal_theta variables
@@ -41,9 +44,26 @@ def goalHandler(msg):
 
 def mapHandler(msg):
     DBPrint('mapHandler')
-    print msg
-   '
-   std_msgs/Header header
+    global expanded_cells, frontier_cells, unexplored_cells
+
+    map_width = msg.info.width
+    map_height = msg.info.height
+    occupancy = msg.data
+
+    index = 0
+
+    for row in range(1, map_height):
+        for col in range(1, map_width):
+            if occupancy[index] == -1:
+                publishCell(row, col, 'unexplored')
+            elif occupancy[index] == 100:
+                publishCell(row, col, 'frontier')
+            else:
+                publishCell(row, col, 'expanded')
+
+
+    '''
+    std_msgs/Header header
         uint32 seq
         time stamp
         string frame_id
@@ -63,29 +83,106 @@ def mapHandler(msg):
                 float64 z
                 float64 w
     int8[] data
-    ' 
+    ''' 
 # Creates and adds a cell to its corresponding list to be published in the near future
 def publishCell(x, y, state):
     DBPrint('publishCell')
-    global fully_explored_cells, known_cells, path_cells
+    global expanded_cells, frontier_cells, unexplored_cells
 
-    if state == 'fully_explored':
-        cells.append(GridCell(x, y))
-    elif state == 'known':
-        cells.append(GridCell(x, y))
-    elif state == 'path':
-        cells.append(GridCell(x, y))
+    if state == 'expanded':
+        expanded_cells.append(GridCell(x, y))
+    elif state == 'frontier':
+        frontier_cells.append(GridCell(x, y))
+    elif state == 'unexplored':
+        unexplored_cells.append(GridCell(x, y))
+    else:
+        print 'Bad state'
 
 # Publishes a message to display all of the cells
 def publishCells():
     DBPrint('publishCells')
+    publishExpanded()
+    publishFrontier()
+    publishUnexplored()
+
+# Publishes the information stored in expanded_cells to the map
+def publishExpanded():
+    DBPrint('publishExpanded')
+    pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
+
+    # Information all GridCells messages will use
+    msg = GridCells()
+    msg.header.frame_id = 'map'
+    msg.cell_width = CELL_WIDTH
+    msg.cell_height = CELL_HEIGHT
+
+    points = []
+
+    for cell in expanded_cells:
+        point = Point()
+        point.x = cell.x
+        point.y = cell.y
+        point.z = 0
+        points.append(point)
+
+    msg.cells = points
+    pub_expanded.publish(msg)
+
+# Publishes the information stored in frontier_cells to the map
+def publishFrontier():
+    DBPrint('publishFrontier')
+    pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+
+    # Information all GridCells messages will use
+    msg = GridCells()
+    msg.header.frame_id = 'map'
+    msg.cell_width = CELL_WIDTH
+    msg.cell_height = CELL_HEIGHT
+    
+    points = []
+
+    for cell in frontier_cells:
+        point = Point()
+        point.x = cell.x
+        point.y = cell.y
+        point.z = 0
+        points.append(point)
+
+    msg.cells = points
+    pub_frontier.publish(msg)
+
+# Publishes the information stored in unexplored_cells to the map
+def publishUnexplored():
+    DBPrint('publishUnexplored')
+    pub_unexplored = rospy.Publisher('/unexplored_cells', GridCells, queue_size=1)
+
+    # Information all GridCells messages will use
+    msg = GridCells()
+    msg.header.frame_id = 'map'
+    msg.cell_width = CELL_WIDTH
+    msg.cell_height = CELL_HEIGHT
+
+    points = []
+
+    for cell in unexplored_cells:
+        point = Point()
+        point.x = cell.x
+        point.y = cell.y
+        point.z = 0
+        points.append(point)
+
+    msg.cells = points
+    pub_unexplored.publish(msg)
+
+def AStar():
+    DBPrint('AStar')
 
 
 # If you need something to happen repeatedly at a fixed interval, write the code here.
 # rospy.Timer(rospy.Duration(.01), timerCallback)
 def timerCallback(event):
     DBPrint("timerCallback")
-    publishTiles()
+    publishCells()
     
     
 def DBPrint(param):
@@ -102,7 +199,7 @@ def main():
     vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist)
     
     # Subscribe to bumper changes
-    rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, bumperHandler, queue_size=1) 
+    # rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, bumperHandler, queue_size=1) 
     
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odomHandler)
@@ -113,19 +210,10 @@ def main():
     # Subscribe to NavToGoal stuff
     rospy.Subscriber('/move_base_simple/goal', PoseStamped, goalHandler)
 
-    # Create tile publishers
-    rospy.Publisher('/fully_explored_cells', GridCells, queue_size=1)
-    rospy.Publisher('/known_cells', GridCells, queue_size=1)
-    rospy.Publisher('/path_cells', GridCells, queue_size=1)
-    
-
     # Create Odemetry listener and boadcaster 
     odom_list = tf.TransformListener()
-    odom_tf = tf.TransformBroadcaster()
-
-    # Set the transform from base_footprint to odom
-    # odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1),rospy.Time.now(),"odom","map")
-    
+    # odom_tf = tf.TransformBroadcaster()
+   
     # Wait for an odom event to init pose
     rospy.sleep(rospy.Duration(1))
 
