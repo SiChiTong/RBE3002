@@ -10,6 +10,10 @@ Panels:
         - /Map1
         - /Local Planning1
         - /Global Planning1
+        - /GridCells1
+        - /GridCells1/Status1
+        - /GridCells2
+        - /GridCells3
       Splitter Ratio: 0.5
     Tree Height: 815
   - Class: rviz/Selection
@@ -370,24 +374,24 @@ Visualization Manager:
       Value: false
     - Alpha: 1
       Class: rviz/GridCells
-      Color: 25; 255; 0
+      Color: 255; 255; 0
       Enabled: true
       Name: GridCells
-      Topic: /fully_explored_cells
+      Topic: /expanded_cells
       Value: true
     - Alpha: 1
       Class: rviz/GridCells
-      Color: 25; 255; 0
+      Color: 0; 255; 255
       Enabled: true
       Name: GridCells
-      Topic: /path_cells
+      Topic: /frontier_cells
       Value: true
     - Alpha: 1
       Class: rviz/GridCells
-      Color: 25; 255; 0
+      Color: 255; 0; 255
       Enabled: true
       Name: GridCells
-      Topic: /known_cells
+      Topic: /unexplored_cells
       Value: true
   Enabled: true
   Global Options:
@@ -442,5 +446,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1855
-  X: 55
-  Y: 14
+  X: 65
+  Y: 24
