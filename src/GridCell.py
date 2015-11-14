@@ -2,22 +2,23 @@ import math #that should be something that works
 
 
 class GridCell:
+   # Hval # manhattan distance to goal
+   # Gval # cost for moving to the cell from the parent cell (parent G val + 10 for rook or 14 for bishop)
+   # Fval # H + G value
+   # Xpos
+   # Ypos
+   # empty
+   # parent
 
-   Hval # manhattan distance to goal
-   Gval # cost for moving to the cell from the parent cell (parent G val + 10 for rook or 14 for bishop)
-   Fval # H + G value
-   Xpos
-   Ypos
-   empty
-   parent
-
-   def __init__(self, x, y, cellVal):
+   def __init__(self, x, y, occupancyLevel):
       self.Xpos = x
       self.Ypos = y
-      if (cellVal == 0):
-      	self.empty = True
-      else
+      self.occupancyLevel = occupancyLevel
+
+      if (occupancyLevel == 100):
       	self.empty = False
+      else:
+      	self.empty = True
    
    # sets the H value to the manhattan distance to the goal
    def setH(self, goalX, goalY):
@@ -63,4 +64,16 @@ class GridCell:
 
    def getParent(self):
       return self.parent
+
+   def getOccupancyLevel(self):
+   	   return self.occupancyLevel
+
+   def __str__(self):
+      return str(self.getXpos()) + ' ' + str(self.getYpos())
+
+   def __repr__(self):
+      return self.__str__()
+
+   def __eq__(self, other): 
+      return self.Xpos == other.Xpos and self.Ypos == other.Ypos 
 

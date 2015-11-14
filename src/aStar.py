@@ -52,7 +52,7 @@ def makeMap(map, width, height, goalX, goalY):
 		for x in range (0, width):
 			matrixMap[x][y] = GridCell(x, y, map[count]) # creates all the gridCells
 			matrixMap[x][y].setH(goalX, goalY) # adds an H value to every gridCell
-			count ++
+			count += 1
 	return matrixMap
 
 def makeSurroundingList(mapMatrix, selectedCell, openList, closedList):
