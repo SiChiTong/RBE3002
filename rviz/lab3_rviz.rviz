@@ -36,7 +36,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz/Grid
       Color: 160; 160; 164
-      Enabled: true
+      Enabled: false
       Line Style:
         Line Width: 0.03
         Value: Lines
@@ -49,7 +49,7 @@ Visualization Manager:
       Plane: XY
       Plane Cell Count: 10
       Reference Frame: <Fixed Frame>
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz/RobotModel
       Collision Enabled: false
@@ -443,16 +443,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.07169
+      Distance: 13.7248
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.222245
-        Y: -0.20572
-        Z: 1.09424
+        X: 0.569168
+        Y: 2.75075
+        Z: 0.537967
       Name: Current View
       Near Clip Distance: 0.01
       Pitch: 1.2498
