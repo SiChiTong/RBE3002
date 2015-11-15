@@ -59,7 +59,7 @@ def goalHandler(msg):
 def mapHandler(msg):
     DBPrint('mapHandler')
     global expanded_cells, frontier_cells, unexplored_cells, CELL_WIDTH, CELL_HEIGHT
-    global map_width, map_height, occupancyGrid
+    global map_width, map_height, occupancyGrid, x_offset, y_offset
 
     map_width = msg.info.width
     map_height = msg.info.height
@@ -179,33 +179,37 @@ def AStar():
             count += 1
 
     # Keep track of explored cells
-    explored = []
-
+    open_list = []
+    # Keep track of cells with parents
+    closed_list = []
     # Keep track of path
     path = []
 
     # make the start position the selected cell
     selectedCell = costMap[x_cell][y_cell]
 
-    while(selectedCell != costMap[x_goal_cell][y_goal_cell]): 
-        path.append(selectedCell) 
-        toExplore = unexploredNeighbors(selectedCell, explored, costMap) 
-        explored.extend(toExplore)
-        try:
-            tentativeNextCell = toExplore[0]
-        except:
-            print "Crashed!"
-            break
-        for n in toExplore:
-            if n.getFval() < tentativeNextCell.getFval():
-                tentativeNextCell = n
-        publishCell(selectedCell.getYpos(), selectedCell.getXpos(), 'unexplored')
-        selectedCell = tentativeNextCell
-    path.append(selectedCell)
+    while (selectedCell != costMap[x_goal_cell][y_goal_cell]): 
+        closed_list.append(selectedCell)
+        neighbors = unexploredNeighbors(selectedCell, open_list, closed_list, costMap)
+        open_list.extend(neighbors)
+        candidate = open_list[0]
+        for cell in open_list:
+            if cell.getFval() < candidate.getFval():
+                candidate = cell
+        selectedCell = candidate
+        open_list.remove(selectedCell)
+
+    path_cell = selectedCell
+    while path_cell != costMap[x_cell][y_cell]:
+        path.append(path_cell)
+        path_cell = path_cell.getParent()
+    path = list(reversed(path))
     print path
+    for p in path:
+        publishCell(p.getXpos() + x_offset, p.getYpos() + y_offset, 'unexplored')
 
 
-def unexploredNeighbors(selectedCell, explored, costMap):
+def unexploredNeighbors(selectedCell, openList, closedList, costMap):
     # iterating through all the cells adjacent to the selected cell
     neighbors_tmp = []
     neighbors = []
@@ -213,14 +217,12 @@ def unexploredNeighbors(selectedCell, explored, costMap):
     neighbors_tmp.append(costMap[selectedCell.getXpos()][selectedCell.getYpos() + 1])
     neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos()])
     neighbors_tmp.append(costMap[selectedCell.getXpos()][selectedCell.getYpos() - 1])
-    # neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() - 1])
-    # neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() + 1])
-    # neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() + 1])
-    # neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() - 1])
+    neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() - 1])
+    neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() + 1])
+    neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() + 1])
+    neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() - 1])
     for n in neighbors_tmp:
-        if not n.isEmpty():
-            print n
-        if n != selectedCell and n not in explored and n.isEmpty():
+        if n != selectedCell and n not in openList and n not in closedList and n.isEmpty():
             n.setParent(selectedCell)
             neighbors.append(n)
     return neighbors
