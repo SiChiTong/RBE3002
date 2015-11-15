@@ -16,10 +16,119 @@ CELL_HEIGHT = 0.3
 
 expanded_cells = []; wall_cells = []; path_cells = []; frontier_cells = []
 
+#drive to a goal subscribed as /move_base_simple/goal
+def navToPose(goal_x, goal_y, goal_theta):
+    DBPrint("navToPose")
+    global x, y, theta, odom_list
+
+    # Get the position of the robot in the global frame
+    (position, orientation) = odom_list.lookupTransform('map','base_footprint', rospy.Time(0)) 
+
+    # Find the distance and angle between the robot and the goal using global frame coordinates
+    distance = math.sqrt((goal_y - position[1]) ** 2 + (goal_x - position[0]) ** 2)
+    angle = math.atan2(goal_y - position[1], goal_x - position[0])
+
+    # Rotate towards goal point, drive to it, rotate to final pose
+    rotate(math.degrees(angle - theta))
+    driveStraight(0.5, distance)
+    rotate(math.degrees(goal_theta - theta))
+
+def publishTwist(u,w):
+    DBPrint("publishTwist")
+
+    # Populate message with data
+    msg = Twist()
+    msg.linear.x = u;     msg.linear.y = 0;     msg.linear.z = 0
+    msg.angular.x = 0;    msg.angular.y = 0;    msg.angular.z = w
+
+    # Publish the message
+    vel_pub.publish(msg)
+
+#This function accepts a speed and a distance for the robot to move in a straight line
+def driveStraight(speed, distance): 
+    DBPrint("driveStraight")
+    global pose
+ 
+    start_pose = pose
+    displacement = 0 
+    r = rospy.Rate(10) # 10hz
+    while displacement < distance:
+        publishTwist(speed, 0)
+        displacement = difference(pose, start_pose)[0] 
+        r.sleep()
+
+# Accepts an angle and makes the robot rotate around it.
+# Parameter is in degrees
+def rotate(angle):
+    DBPrint("rotate")
+    global pose, theta
+
+    # Correct angle to be withing -180 - 180
+    if angle > 180:
+        angle = -(angle - 180)
+    elif angle < -180:
+        angle = -(angle + 180)
+
+    # Convert degrees to radians
+    angle = angle * math.pi / 180
+
+    # Get the current orientation
+    current_angle = theta
+
+    # Figure out the beginning and end orientations
+    start_angle = current_angle;
+    end_angle = start_angle + angle
+
+    # Make sure end angle is in range
+    if end_angle < -math.pi or end_angle > math.pi:
+        end_angle = (-math.pi + (abs(end_angle) % math.pi)) * abs(end_angle)/end_angle
+
+    # Constants
+    frequency = 10 # Hz
+    precision = 0.02 # Radians = ~1 degree
+    p, i = 10.0, 0.1 # PID constants
+
+    # Variables
+    error = 100
+    last_error = error
+    total_error = 0
+
+    # While it has not yet reached the desired position, turn
+    r = rospy.Rate(frequency)
+    while abs(error) > precision:
+        total_error += last_error
+        last_error = error
+        error = end_angle - current_angle
+        w = p * error # - i*total_error
+        
+        # Cap the maximum turning rate
+        if w > 1:
+            w = 1
+        elif w < -1:
+            w = -1
+
+        publishTwist(0, w)
+        current_angle = theta
+        r.sleep()
+
+# Function that determines the difference in two poses
+# Returns (displacement, delta_x, delta_y, delta_z, delta_w)
+def difference(p1, p2):
+    return [\
+            math.sqrt((p1.pose.position.x - p2.pose.position.x) ** 2 + \
+            (p1.pose.position.y - p2.pose.position.y) ** 2),
+
+            # p1.pose.orientation.x - p2.pose.orientation.x,
+            # p1.pose.orientation.y - p2.pose.orientation.y,
+            # p1.pose.orientation.z - p2.pose.orientation.z,
+            # p1.pose.orientation.w - p2.pose.orientation.w
+            ]
+
 #Odometry Callback function.
 def odomHandler(msg):
     DBPrint("odomHandler")
-    global x, y, theta, x_cell, y_cell
+    global x, y, theta, x_cell, y_cell, pose
+    pose = msg.pose
 
     try:
         (trans, rot) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
@@ -57,7 +166,9 @@ def goalHandler(msg):
     path_cells = []; expanded_cells = []; frontier_cells = []
     publishPath(); publishExpanded(); publishFrontier()
 
-    AStar(x_cell, y_cell, x_goal_cell, y_goal_cell)
+    path = AStar(x_cell, y_cell, x_goal_cell, y_goal_cell)
+    # for p in path.poses:
+    #     navToPose(p.pose.position.x, p.pose.position.y, math.degrees(p.pose.orientation.z))
 
 
 def mapHandler(msg):
@@ -231,7 +342,6 @@ def AStar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     path_msg = Path()
     path_msg.header.frame_id = 'map'
     path_msg.poses.extend(waypoints)
-    pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
     pub_path.publish(path_msg)
     pub_path.publish(path_msg)
     publishExpanded()
@@ -346,7 +456,9 @@ def getDirection(x,y):
 
 def main():
     DBPrint('main')
-    global vel_pub, odom_list
+    global vel_pub, odom_list, pub_path
+
+    pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
 
 
     rospy.init_node('lab3')
