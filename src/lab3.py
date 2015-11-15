@@ -33,7 +33,7 @@ def odomHandler(msg):
         x_cell = int((x - 2* CELL_WIDTH) // CELL_WIDTH)
         y_cell = int(y // CELL_WIDTH)
     except:
-        print "Waiting for transform..."
+        pass
 
 def goalHandler(msg):
     DBPrint('goalHandler')
@@ -191,11 +191,15 @@ def AStar():
         path.append(selectedCell) 
         toExplore = unexploredNeighbors(selectedCell, explored, costMap) 
         explored.extend(toExplore)
-        tentativeNextCell = toExplore[0]
+        try:
+            tentativeNextCell = toExplore[0]
+        except:
+            print "Crashed!"
+            break
         for n in toExplore:
             if n.getFval() < tentativeNextCell.getFval():
                 tentativeNextCell = n
-        publishCell(selectedCell.getXpos(), selectedCell.getYpos(), 'unexplored')
+        publishCell(selectedCell.getYpos(), selectedCell.getXpos(), 'unexplored')
         selectedCell = tentativeNextCell
     path.append(selectedCell)
     print path
@@ -214,6 +218,8 @@ def unexploredNeighbors(selectedCell, explored, costMap):
     # neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() + 1])
     # neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() - 1])
     for n in neighbors_tmp:
+        if not n.isEmpty():
+            print n
         if n != selectedCell and n not in explored and n.isEmpty():
             n.setParent(selectedCell)
             neighbors.append(n)
