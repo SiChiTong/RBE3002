@@ -472,7 +472,7 @@ def main():
     rospy.init_node('lab3')
 
     # Publisher for commanding robot motion
-    vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist)
+    vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist, queue_size=10)
     
     # Subscribe to bumper changes
     # rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, bumperHandler, queue_size=1) 
