@@ -172,7 +172,6 @@ def AStar():
 
     count = 0
     # iterating through every position in the matrix
-    print occupancyGrid
     for row in range(0, map_height):
         for col in range (0, map_width):
             costMap[row][col] = GridCell(row, col, occupancyGrid[count]) # creates all the gridCells
