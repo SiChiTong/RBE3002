@@ -172,6 +172,7 @@ def AStar():
 
     count = 0
     # iterating through every position in the matrix
+    print occupancyGrid
     for row in range(0, map_height):
         for col in range (0, map_width):
             costMap[row][col] = GridCell(row, col, occupancyGrid[count]) # creates all the gridCells
@@ -179,29 +180,44 @@ def AStar():
             count += 1
 
     # Keep track of explored cells
-    explored = [] 
+    explored = []
+
+    # Keep track of path
+    path = []
 
     # make the start position the selected cell
-    selectedCell = costMap[x_cell][y_cell] 
+    selectedCell = costMap[x_cell][y_cell]
 
     while(selectedCell != costMap[x_goal_cell][y_goal_cell]): 
-        explored.append(selectedCell) 
+        path.append(selectedCell) 
         toExplore = unexploredNeighbors(selectedCell, explored, costMap) 
-        print selectedCell, toExplore
-        break
-
+        explored.extend(toExplore)
+        tentativeNextCell = toExplore[0]
+        for n in toExplore:
+            if n.getFval() < tentativeNextCell.getFval():
+                tentativeNextCell = n
+        publishCell(selectedCell.getXpos(), selectedCell.getYpos(), 'unexplored')
+        selectedCell = tentativeNextCell
+    path.append(selectedCell)
+    print path
 
 
 def unexploredNeighbors(selectedCell, explored, costMap):
     # iterating through all the cells adjacent to the selected cell
+    neighbors_tmp = []
     neighbors = []
-    for i in range(selectedCell.getXpos() - 1, selectedCell.getXpos() + 1):
-        for j in range(selectedCell.getYpos() - 1, selectedCell.getYpos() + 1):
-            try:
-                if (costMap[i][j].isEmpty() and (costMap[i][j] not in explored)):
-                    neighbors.append(costMap[i][j])
-            except:
-                print "off map"
+    neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos()])
+    neighbors_tmp.append(costMap[selectedCell.getXpos()][selectedCell.getYpos() + 1])
+    neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos()])
+    neighbors_tmp.append(costMap[selectedCell.getXpos()][selectedCell.getYpos() - 1])
+    # neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() - 1])
+    # neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() + 1])
+    # neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() + 1])
+    # neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() - 1])
+    for n in neighbors_tmp:
+        if n != selectedCell and n not in explored and n.isEmpty():
+            n.setParent(selectedCell)
+            neighbors.append(n)
     return neighbors
 
 
