@@ -165,6 +165,15 @@ def goalHandler(msg):
 
     path_cells = []; expanded_cells = []; frontier_cells = []
     publishPath(); publishExpanded(); publishFrontier()
+    
+    pose_tmp = PoseStamped()
+    pose_tmp.pose.position.x = x
+    pose_tmp.pose.position.y = y
+    pose_tmp.pose.orientation.z = theta
+    path_msg = Path()
+    path_msg.header.frame_id = 'map'
+    path_msg.poses.append(pose_tmp)
+    pub_path.publish(path_msg)
 
     path = AStar(x_cell, y_cell, x_goal_cell, y_goal_cell)
     # for p in path.poses:
@@ -343,13 +352,12 @@ def AStar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     path_msg.header.frame_id = 'map'
     path_msg.poses.extend(waypoints)
     pub_path.publish(path_msg)
-    pub_path.publish(path_msg)
     publishExpanded()
     publishFrontier()
     #Send path to gridcells
-    # for p in path:
-    #     publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'path')
-    # publishPath()
+    for p in path:
+        publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'path')
+    publishPath()
     return path_msg
 
 
