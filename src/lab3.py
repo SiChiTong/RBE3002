@@ -3,7 +3,7 @@ import rospy, tf, time, math, roslib
 from kobuki_msgs.msg import BumperEvent
 
 from geometry_msgs.msg import Twist, Point, Quaternion, PoseStamped
-from nav_msgs.msg import Odometry, OccupancyGrid, GridCells
+from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
 from std_msgs.msg import Empty, Header
 
 from tf.transformations import euler_from_quaternion
@@ -226,12 +226,22 @@ def AStar(x_cell, y_cell, x_goal_cell, y_goal_cell):
         path_cell = path_cell.getParent()
     path = list(reversed(path))
     print path
+    # Publish path
     waypoints = getWaypoints(path)
-    for p in path:
-        publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'path')
-    publishPath()
+    path_msg = Path()
+    path_msg.header.frame_id = 'map'
+    path_msg.poses.extend(waypoints)
+    pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
+    pub_path.publish(path_msg)
+    pub_path.publish(path_msg)
     publishExpanded()
     publishFrontier()
+    #Send path to gridcells
+    # for p in path:
+    #     publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'path')
+    # publishPath()
+    return path_msg
+
 
 def unexploredNeighbors(selectedCell, openList, closedList, costMap):
     # iterating through all the cells adjacent to the selected cell
@@ -251,6 +261,7 @@ def unexploredNeighbors(selectedCell, openList, closedList, costMap):
             neighbors.append(n)
     return neighbors
 
+
 def aStarHandler(req):
     global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, path_cells, expanded_cells, frontier_cells
     start_pose = req.startPose.pose
@@ -265,6 +276,9 @@ def aStarHandler(req):
     goal_y = goal_pose.position.y
     goal_theta = yaw
     
+    x_cell = int((start_pose.position.x - 2* CELL_WIDTH) // CELL_WIDTH)
+    y_cell = int(start_pose.position.y // CELL_WIDTH)
+
     x_goal_cell = int((goal_x - 2* CELL_WIDTH) // CELL_WIDTH)
     y_goal_cell = int(goal_y // CELL_WIDTH)
 
@@ -273,7 +287,7 @@ def aStarHandler(req):
     path_cells = []; expanded_cells = []; frontier_cells = []
     publishPath(); publishExpanded(); publishFrontier()
 
-    AStar()
+    return AStar(x_cell, y_cell, x_goal_cell, y_goal_cell)
 
 
 def getWaypoints(path):
@@ -283,25 +297,27 @@ def getWaypoints(path):
     changeX = 0
     changeY = 0
     # checking if the robot changes direction along the path
-    for i in range (1, path.size()):
+    for i in range (1, len(path)):
         newdX = path[i].getXpos() - path[i-1].getXpos()
         newdY = path[i].getYpos() - path[i-1].getYpos()
         # if the robot does change direction, record the direction it was facing, and record the position the robot was at
         if newdX != changeX or newdY != changeY:
-            direction.extend(getDirection(changeX, changeY))
-            waypoints.extend(path[i-1])
+            direction.append(getDirection(changeX, changeY))
+            waypoints.append(path[i-1])
         changeX = newdX
         changeY = newdY
     # also record the last position of the robot
-    direction.extend(getDirection(changeX, changeY))
-    waypoints.extend(path[path.size()-1])
+    direction.append(getDirection(changeX, changeY))
+    waypoints.append(path[len(path)-1])
     # turn all the data into a list poses
-    for i in range (0, waypoints.size()):
+    x_off = waypoints[0].getXpos() * CELL_WIDTH + 2 * CELL_WIDTH - x
+    y_off = waypoints[0].getYpos() * CELL_WIDTH - y
+    for i in range (0, len(waypoints)):
         pose = PoseStamped()
-        pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2 * CELL_WIDTH
-        pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH
+        pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2.5 * CELL_WIDTH + x_off
+        pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH + y_off + 0.2 * CELL_WIDTH
         pose.pose.orientation.z = direction[i]
-        posePath.extend(pose)
+        posePath.append(pose)
     return posePath
 
 
@@ -309,23 +325,23 @@ def getDirection(x,y):
     if x == -1:
         if y == -1:
             return 3*math.pi/4
-        else if y == 0:
-            return pi
+        elif y == 0:
+            return math.pi
         else:
             return -3*math.pi/4
-    else if x == 0:
+    elif x == 0:
         if y == -1:
             return math.pi/2
-        else if y == 0:
+        elif y == 0:
             return 0
-        else
+        else:
             return -math.pi/2
     else:
         if y == -1:
             return math.pi/4
-        else if y == 0:
+        elif y == 0:
             return 0
-        else
+        else:
             return -math.pi/4 
 
 def main():
