@@ -14,7 +14,7 @@ DEBUG = 0
 CELL_WIDTH = 0.3
 CELL_HEIGHT = 0.3
 
-expanded_cells = []; frontier_cells = []; unexplored_cells = []
+expanded_cells = []; wall_cells = []; path_cells = []; frontier_cells = []
 
 #Odometry Callback function.
 def odomHandler(msg):
@@ -37,7 +37,7 @@ def odomHandler(msg):
 
 def goalHandler(msg):
     DBPrint('goalHandler')
-    global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, unexplored_cells
+    global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, path_cells, expanded_cells, frontier_cells
     pose = msg.pose
 
     # Set the goal_x, goal_y, and goal_theta variables
@@ -53,8 +53,10 @@ def goalHandler(msg):
     y_goal_cell = int(goal_y // CELL_WIDTH)
 
     print 'Goal ',  x_goal_cell, y_goal_cell
-    unexplored_cells = []
-    publishUnexplored()
+
+    path_cells = []; expanded_cells = []; frontier_cells = []
+    publishPath(); publishExpanded(); publishFrontier()
+
     AStar()
 
 
@@ -78,18 +80,14 @@ def mapHandler(msg):
     for y in range(1, map_height+1):
         for x in range(1, map_width+1):
             index = (y - 1) * map_width + (x - 1)
-            if occupancyGrid[index] == -1:
-                publishCell(x + x_offset, y + y_offset, 'unexplored')
-            elif occupancyGrid[index] == 100:
-                publishCell(x + x_offset, y + y_offset, 'frontier')
-            else:
-                publishCell(x + x_offset, y + y_offset, 'expanded')
+            if occupancyGrid[index] == 100:
+                publishCell(x + x_offset, y + y_offset, 'wall')
 
 
 # Creates and adds a cell-location to its corresponding list to be published in the near future
 def publishCell(x, y, state):
     DBPrint('publishCell')
-    global expanded_cells, frontier_cells, unexplored_cells
+    global expanded_cells, frontier_cells, wall_cells, path_cells
 
     p = Point()
     p.x = x*CELL_WIDTH
@@ -98,10 +96,12 @@ def publishCell(x, y, state):
 
     if state == 'expanded':
         expanded_cells.append(p)
+    elif state == 'wall':
+        wall_cells.append(p)
+    elif state == 'path':
+        path_cells.append(p)
     elif state == 'frontier':
         frontier_cells.append(p)
-    elif state == 'unexplored':
-        unexplored_cells.append(p)
     else:
         print 'Bad state'
 
@@ -110,7 +110,8 @@ def publishCells():
     DBPrint('publishCells')
     publishExpanded()
     publishFrontier()
-    publishUnexplored()
+    publishWalls()
+    publishPath()
 
 # Publishes the information stored in expanded_cells to the map
 def publishExpanded():
@@ -127,9 +128,9 @@ def publishExpanded():
     pub_expanded.publish(msg)
 
 # Publishes the information stored in frontier_cells to the map
-def publishFrontier():
-    DBPrint('publishFrontier')
-    pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+def publishWalls():
+    DBPrint('publishWalls')
+    pub_frontier = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
 
     # Information all GridCells messages will use
     msg = GridCells()
@@ -137,13 +138,13 @@ def publishFrontier():
     msg.cell_width = CELL_WIDTH
     msg.cell_height = CELL_HEIGHT
 
-    msg.cells = frontier_cells
+    msg.cells = wall_cells
     pub_frontier.publish(msg)
 
 # Publishes the information stored in unexplored_cells to the map
-def publishUnexplored():
-    DBPrint('publishUnexplored')
-    pub_unexplored = rospy.Publisher('/unexplored_cells', GridCells, queue_size=1)
+def publishPath():
+    DBPrint('publishPath')
+    pub_unexplored = rospy.Publisher('/path_cells', GridCells, queue_size=1)
 
     # Information all GridCells messages will use
     msg = GridCells()
@@ -151,23 +152,31 @@ def publishUnexplored():
     msg.cell_width = CELL_WIDTH
     msg.cell_height = CELL_HEIGHT
 
-    msg.cells = unexplored_cells
+    msg.cells = path_cells
     pub_unexplored.publish(msg)
 
+# Publishes the information stored in unexplored_cells to the map
+def publishFrontier():
+    DBPrint('publishFrontier')
+    pub_unexplored = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
 
-# If you need something to happen repeatedly at a fixed interval, write the code here.
-# rospy.Timer(rospy.Duration(.01), timerCallback)
-def timerCallback(event):
-    DBPrint("timerCallback")
-    publishCells()
+    # Information all GridCells messages will use
+    msg = GridCells()
+    msg.header.frame_id = 'map'
+    msg.cell_width = CELL_WIDTH
+    msg.cell_height = CELL_HEIGHT
+
     
+    msg.cells = frontier_cells
+    pub_unexplored.publish(msg)
+
     
 def DBPrint(param):
     if DEBUG == 1:
         print param
 
 def AStar():
-    global x_cell, y_cell, x_goal_cell, y_goal_cell
+    global x_cell, y_cell, x_goal_cell, y_goal_cell, frontier_cells, expanded_cells
 
     # Create the costMap
     costMap = [[0 for x in range(map_width)] for x in range(map_height)]
@@ -202,6 +211,14 @@ def AStar():
                 candidate = cell
         selectedCell = candidate
         open_list.remove(selectedCell)
+        frontier_cells = []; expanded_cells = [];
+        for cell in open_list:
+            if cell not in closed_list:
+                publishCell(cell.getXpos() + x_offset + 1, cell.getYpos() + y_offset + 1, 'expanded')
+        for cell in closed_list:
+            publishCell(cell.getXpos() + x_offset + 1, cell.getYpos() + y_offset + 1, 'frontier')
+        publishExpanded()
+        publishFrontier()
 
     path_cell = selectedCell
     while path_cell != costMap[x_cell][y_cell]:
@@ -210,8 +227,8 @@ def AStar():
     path = list(reversed(path))
     print path
     for p in path:
-        publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'unexplored')
-
+        publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'path')
+    publishPath()
 
 def unexploredNeighbors(selectedCell, openList, closedList, costMap):
     # iterating through all the cells adjacent to the selected cell
@@ -236,6 +253,7 @@ def main():
     DBPrint('main')
     global vel_pub, odom_list
 
+
     rospy.init_node('lab3')
 
     # Publisher for commanding robot motion
@@ -257,11 +275,11 @@ def main():
     odom_list = tf.TransformListener()
     # odom_tf = tf.TransformBroadcaster()
    
+    publishPath()
+    publishFrontier()
+    publishExpanded()
     # Wait for an odom event to init pose
     rospy.sleep(rospy.Duration(1))
-
-    # Update the map cells every second
-    rospy.Timer(rospy.Duration(1), timerCallback)
     
     rospy.spin()
 
