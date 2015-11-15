@@ -37,7 +37,7 @@ def odomHandler(msg):
 
 def goalHandler(msg):
     DBPrint('goalHandler')
-    global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell 
+    global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, unexplored_cells
     pose = msg.pose
 
     # Set the goal_x, goal_y, and goal_theta variables
@@ -53,6 +53,8 @@ def goalHandler(msg):
     y_goal_cell = int(goal_y // CELL_WIDTH)
 
     print 'Goal ',  x_goal_cell, y_goal_cell
+    unexplored_cells = []
+    publishUnexplored()
     AStar()
 
 
@@ -73,15 +75,15 @@ def mapHandler(msg):
 
     index = 0
 
-    for row in range(1, map_height+1):
-        for col in range(1, map_width+1):
-            index = (row - 1) * map_width + (col - 1)
+    for y in range(1, map_height+1):
+        for x in range(1, map_width+1):
+            index = (y - 1) * map_width + (x - 1)
             if occupancyGrid[index] == -1:
-                publishCell(col+x_offset, row+y_offset, 'unexplored')
+                publishCell(x + x_offset, y + y_offset, 'unexplored')
             elif occupancyGrid[index] == 100:
-                publishCell(col+x_offset, row+y_offset, 'frontier')
+                publishCell(x + x_offset, y + y_offset, 'frontier')
             else:
-                publishCell(col+x_offset, row+y_offset, 'expanded')
+                publishCell(x + x_offset, y + y_offset, 'expanded')
 
 
 # Creates and adds a cell-location to its corresponding list to be published in the near future
@@ -172,10 +174,12 @@ def AStar():
 
     count = 0
     # iterating through every position in the matrix
-    for row in range(0, map_height):
-        for col in range (0, map_width):
-            costMap[row][col] = GridCell(row, col, occupancyGrid[count]) # creates all the gridCells
-            costMap[row][col].setH(x_goal_cell, y_goal_cell) # adds an H value to every gridCell
+    # OccupancyGrid is in row-major order
+    # Items in rows are displayed in contiguous memory
+    for y in range (0, map_height): # Rows
+        for x in range(0, map_width): # Columns
+            costMap[x][y] = GridCell(x, y, occupancyGrid[count]) # creates all the gridCells
+            costMap[x][y].setH(x_goal_cell, y_goal_cell) # adds an H value to every gridCell
             count += 1
 
     # Keep track of explored cells
@@ -206,7 +210,7 @@ def AStar():
     path = list(reversed(path))
     print path
     for p in path:
-        publishCell(p.getXpos() + x_offset, p.getYpos() + y_offset, 'unexplored')
+        publishCell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'unexplored')
 
 
 def unexploredNeighbors(selectedCell, openList, closedList, costMap):
@@ -222,7 +226,7 @@ def unexploredNeighbors(selectedCell, openList, closedList, costMap):
     neighbors_tmp.append(costMap[selectedCell.getXpos() - 1][selectedCell.getYpos() + 1])
     neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos() - 1])
     for n in neighbors_tmp:
-        if n != selectedCell and n not in openList and n not in closedList and n.isEmpty():
+        if (n != selectedCell) and (n not in openList) and (n not in closedList) and n.isEmpty():
             n.setParent(selectedCell)
             neighbors.append(n)
     return neighbors
