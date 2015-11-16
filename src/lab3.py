@@ -10,14 +10,21 @@ from tf.transformations import euler_from_quaternion
 
 from GridCell import GridCell
 
+from lab3.srv import *
+
 DEBUG = 0
 CELL_WIDTH = 0.3
 CELL_HEIGHT = 0.3
 
 expanded_cells = []; wall_cells = []; path_cells = []; frontier_cells = []
 
-#drive to a goal subscribed as /move_base_simple/goal
 def navToPose(goal_x, goal_y, goal_theta):
+    """drive to a goal subscribed as /move_base_simple/goal.
+    Moves to a pose in the world frame.
+    :param goal_x: The goal X position.
+    :param goal_y: The goal Y position.
+    :param goal_theta: The goal theta orientation.
+    """
     DBPrint("navToPose")
     global x, y, theta, odom_list
 
@@ -33,7 +40,12 @@ def navToPose(goal_x, goal_y, goal_theta):
     driveStraight(0.5, distance)
     rotate(math.degrees(goal_theta - theta))
 
+
 def publishTwist(u,w):
+    """Publish a twist message to the robot base.
+    :param u: Linear velocity.
+    :param w: Angular velocity.
+    """
     DBPrint("publishTwist")
 
     # Populate message with data
@@ -44,8 +56,12 @@ def publishTwist(u,w):
     # Publish the message
     vel_pub.publish(msg)
 
-#This function accepts a speed and a distance for the robot to move in a straight line
-def driveStraight(speed, distance): 
+
+def driveStraight(speed, distance):
+    """This function accepts a speed and a distance for the robot to move in a straight line
+    :param speed: The forward robot speed in m/s.
+    :param distance: The forward distance to move in m.
+    """
     DBPrint("driveStraight")
     global pose
  
@@ -57,9 +73,11 @@ def driveStraight(speed, distance):
         displacement = difference(pose, start_pose)[0] 
         r.sleep()
 
-# Accepts an angle and makes the robot rotate around it.
-# Parameter is in degrees
+
 def rotate(angle):
+    """Accepts an angle and makes the robot rotate around it.
+    :param angle: Angle (degrees)
+    """
     DBPrint("rotate")
     global pose, theta
 
@@ -111,9 +129,13 @@ def rotate(angle):
         current_angle = theta
         r.sleep()
 
-# Function that determines the difference in two poses
-# Returns (displacement, delta_x, delta_y, delta_z, delta_w)
+
 def difference(p1, p2):
+    """Function that determines the difference in two poses
+    :param p1: Starting pose
+    :param p2: Ending pose.
+    :return: Returns (displacement, delta_x, delta_y, delta_z, delta_w)
+    """
     return [\
             math.sqrt((p1.pose.position.x - p2.pose.position.x) ** 2 + \
             (p1.pose.position.y - p2.pose.position.y) ** 2),
@@ -124,8 +146,11 @@ def difference(p1, p2):
             # p1.pose.orientation.w - p2.pose.orientation.w
             ]
 
-#Odometry Callback function.
+
 def odomHandler(msg):
+    """Odometry callback function.
+    :param msg: The odom message.
+    """
     DBPrint("odomHandler")
     global x, y, theta, x_cell, y_cell, pose
     pose = msg.pose
@@ -144,7 +169,12 @@ def odomHandler(msg):
     except:
         pass
 
+
 def goalHandler(msg):
+    """
+    Handles when a new move goal is received from Rviz.
+    :param msg: The new desired pose (in the world frame) from Rviz.
+    """
     DBPrint('goalHandler')
     global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, path_cells, expanded_cells, frontier_cells
     pose = msg.pose
@@ -181,6 +211,10 @@ def goalHandler(msg):
 
 
 def mapHandler(msg):
+    """
+    Handles when a new map message arrives.
+    :param msg: The map message to process.
+    """
     DBPrint('mapHandler')
     global expanded_cells, frontier_cells, unexplored_cells, CELL_WIDTH, CELL_HEIGHT
     global map_width, map_height, occupancyGrid, x_offset, y_offset
@@ -204,8 +238,13 @@ def mapHandler(msg):
                 publishCell(x + x_offset, y + y_offset, 'wall')
 
 
-# Creates and adds a cell-location to its corresponding list to be published in the near future
 def publishCell(x, y, state):
+    """
+    Creates and adds a cell-location to its corresponding list to be published in the near future
+    :param x: The X position (in terms of cell number) of the cell to color.
+    :param y: The Y position (in terms of cell number) of the cell to color.
+    :param state: The cell "state" to fill in, either expanded, wall, path, or frontier
+    """
     DBPrint('publishCell')
     global expanded_cells, frontier_cells, wall_cells, path_cells
 
@@ -225,16 +264,22 @@ def publishCell(x, y, state):
     else:
         print 'Bad state'
 
-# Publishes a message to display all of the cells
+
 def publishCells():
+    """
+    Publishes messages to display all cells.
+    """
     DBPrint('publishCells')
     publishExpanded()
     publishFrontier()
     publishWalls()
     publishPath()
 
-# Publishes the information stored in expanded_cells to the map
+
 def publishExpanded():
+    """
+    Publishes the information stored in expanded_cells to the map
+    """
     DBPrint('publishExpanded')
     pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
 
@@ -247,8 +292,11 @@ def publishExpanded():
     msg.cells = expanded_cells
     pub_expanded.publish(msg)
 
-# Publishes the information stored in frontier_cells to the map
+
 def publishWalls():
+    """
+    Publishes the information stored in frontier_cells to the map
+    """
     DBPrint('publishWalls')
     pub_frontier = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
 
@@ -261,8 +309,11 @@ def publishWalls():
     msg.cells = wall_cells
     pub_frontier.publish(msg)
 
-# Publishes the information stored in unexplored_cells to the map
+
 def publishPath():
+    """
+    Publishes the information stored in unexplored_cells to the map
+    """
     DBPrint('publishPath')
     pub_unexplored = rospy.Publisher('/path_cells', GridCells, queue_size=1)
 
@@ -275,8 +326,11 @@ def publishPath():
     msg.cells = path_cells
     pub_unexplored.publish(msg)
 
-# Publishes the information stored in unexplored_cells to the map
+
 def publishFrontier():
+    """
+    Publishes the information stored in unexplored_cells to the map
+    """
     DBPrint('publishFrontier')
     pub_unexplored = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
 
@@ -290,12 +344,25 @@ def publishFrontier():
     msg.cells = frontier_cells
     pub_unexplored.publish(msg)
 
-    
+
 def DBPrint(param):
+    """
+    Prints out a message if debugging is enabled.
+    :param param: The message to print.
+    """
     if DEBUG == 1:
         print param
 
+
 def AStar(x_cell, y_cell, x_goal_cell, y_goal_cell):
+    """
+    Complete the A* path planning algorithm on the globally stored map.
+    :param x_cell: The starting X cell on the map.
+    :param y_cell: The starting Y cell on the map.
+    :param x_goal_cell: The goal X cell on the map.
+    :param y_goal_cell: The goal Y cell on the map.
+    :return: The path from the starting pose to the ending pose planned by the algorithm.
+    """
     global frontier_cells, expanded_cells
 
     # Create the costMap
@@ -362,7 +429,15 @@ def AStar(x_cell, y_cell, x_goal_cell, y_goal_cell):
 
 
 def unexploredNeighbors(selectedCell, openList, closedList, costMap):
-    # iterating through all the cells adjacent to the selected cell
+    """
+    Returns a list of all of the unexplored neighbors of a given cell. This method
+    also sets all of the neighbor cells parents to the selected cell.
+    :param selectedCell: The cell to search for neighbors of.
+    :param openList: The open list from A*.
+    :param closedList: The closed list from A*.
+    :param costMap: The global costmap.
+    :return: A list of GridCells containing the eligible neighbor candidates.
+    """
     neighbors_tmp = []
     neighbors = []
     neighbors_tmp.append(costMap[selectedCell.getXpos() + 1][selectedCell.getYpos()])
@@ -381,6 +456,11 @@ def unexploredNeighbors(selectedCell, openList, closedList, costMap):
 
 
 def aStarHandler(req):
+    """
+    Handles A* requests that come in on the A* service.
+    :param req: The service request.
+    :return: A path planned by the A* algorithm.
+    """
     global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, path_cells, expanded_cells, frontier_cells
     start_pose = req.startPose.pose
     goal_pose = req.endPose.pose
@@ -409,6 +489,12 @@ def aStarHandler(req):
 
 
 def getWaypoints(path):
+    """
+    Get path waypoints from a list of GridCells defining the path from the
+    start to the end of navigation.
+    :param path: A list of GridCells defining the path.
+    :return: A nav_msgs/Path message containing extracted the path.
+    """
     waypoints = []
     direction = []
     posePath = []
@@ -439,7 +525,13 @@ def getWaypoints(path):
     return posePath
 
 
-def getDirection(x,y):
+def getDirection(x, y):
+    """
+    Get the direction from one cell to the next cell.
+    :param x: The change in X coordinates between the previous and current cell.
+    :param y: The change in Y coordinates between the previous and current cell.
+    :return: An angle, the direction from the previous to the current cell.
+    """
     if x == -1:
         if y == -1:
             return 3*math.pi/4
@@ -463,19 +555,19 @@ def getDirection(x,y):
             return -math.pi/4 
 
 def main():
+    """
+    The main program function.
+    """
     DBPrint('main')
     global vel_pub, odom_list, pub_path
 
-    pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
-
-
     rospy.init_node('lab3')
+
+    #Publisher for publishing the navigation path determined by A*
+    pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
 
     # Publisher for commanding robot motion
     vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist, queue_size=10)
-    
-    # Subscribe to bumper changes
-    # rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, bumperHandler, queue_size=1) 
     
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odomHandler)
@@ -490,7 +582,7 @@ def main():
     odom_list = tf.TransformListener()
     
     # Create an A* ros service
-    # rospy.Service('A*', aStar, aStarHandler)
+    rospy.Service('A*', aStar, aStarHandler)
    
     publishExpanded()
     publishFrontier()
