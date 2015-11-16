@@ -1,11 +1,4 @@
 class GridCell:
-    # Hval # manhattan distance to goal
-    # Gval # cost for moving to the cell from the parent cell (parent G val + 10 for rook or 14 for bishop)
-    # Fval # H + G value
-    # Xpos
-    # Ypos
-    # empty
-    # parent
     Gval = 0
 
     def __init__(self, x, y, occupancyLevel):
@@ -13,20 +6,28 @@ class GridCell:
         self.Ypos = y
         self.occupancyLevel = occupancyLevel
 
-        if (occupancyLevel != 0):
+        if occupancyLevel != 0:
             self.empty = False
         else:
             self.empty = True
 
-    # sets the H value to the manhattan distance to the goal
     def setH(self, goalX, goalY):
-       self.Hval = abs(goalX - self.Xpos) + abs(goalY - self.Ypos)
+        """
+        sets the H value to the manhattan distance to the goal
+        :param goalX: The goal X position on the grid.
+        :param goalY: The goal Y position on the grid.
+        """
+        self.Hval = abs(goalX - self.Xpos) + abs(goalY - self.Ypos)
 
-    # sets the parent of the cell and also the G value because that is done right after
-    # and then the F value because its just H + G and we already have H
     def setParent(self, parentCell):
+        """
+        sets the parent of the cell and also the G value because that is done right after
+        and then the F value because its just H + G and we already have H
+        :param parentCell: The parent cell to this cell.
+        """
         self.parent = parentCell
-        # if the x or y coordinate of the parent is the same as the child then we know the robot moves like a rook, so we know to add 10
+        # if the x or y coordinate of the parent is the same as the child then we know the robot moves
+        # like a rook, so we know to add 10
         # otherwize it moves like a bshop so we add 14 because 10 * sqrt(2) = ~14
         # geometry
         if (self.Xpos == parentCell.getXpos() or self.Ypos == parentCell.getYpos()):
@@ -35,53 +36,69 @@ class GridCell:
             self.Gval = parentCell.getGval() + 14
         self.Fval = self.Hval + self.Gval
 
-
     def isNotInList(self, theList):
         for cell in theList:
             if cell.getXpos() == self.Xpos and cell.getYpos() == self.Ypos:
                 return False
         return True
 
-
     def isEmpty(self):
+        """
+        Determine if the cell is empty.
+        :return: True if empty.
+        """
         return self.empty
 
-
     def getXpos(self):
+        """
+        Get the X grid position of the cell.
+        :return: The grid position.
+        """
         return self.Xpos
 
-
     def getYpos(self):
+        """
+        Get the Y grid position of the cell.
+        :return: The grid position.
+        """
         return self.Ypos
-
 
     def getGval(self):
         return self.Gval
 
-
     def getHval(self):
+        """
+        Get the cell's H value.
+        :return: The H value.
+        """
         return self.Hval
 
-
     def getFval(self):
+        """
+        Get the cell's G value.
+        :return: The G value.
+        """
         return self.Fval
 
-
     def getParent(self):
+        """
+        Get the cell's parent.
+        :return: A grid cell, the parent cell.
+        """
         return self.parent
 
-
     def getOccupancyLevel(self):
+        """
+        Get the cell's occupancy level.
+        :return: An int from 0 to 100.
+        """
         return self.occupancyLevel
-
 
     def __str__(self):
         return str(self.getXpos()) + ' ' + str(self.getYpos()) + ' ' + str(self.isEmpty())
 
-
     def __repr__(self):
         return self.__str__()
-
 
     def __eq__(self, other):
         return self.Xpos == other.Xpos and self.Ypos == other.Ypos
