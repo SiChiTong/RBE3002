@@ -7,7 +7,6 @@ from GridCell import GridCell
 from geometry_msgs.msg import Twist, Point, PoseStamped, Pose, Quaternion
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
-from actionlib_msgs.msg import *
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 
 DEBUG = 0
@@ -23,7 +22,7 @@ frontier_cells = []
 def nav_to_pose(goal_x, goal_y, goal_theta):
     """drive to a goal subscribed as /move_base_simple/goal.
     Moves to a pose in the world frame.
-    :param goal_x: The goal /home/arthurlockmanX position.
+    :param goal_x: The goal X position.
     :param goal_y: The goal Y position.
     :param goal_theta: The goal theta orientation.
     """
@@ -48,7 +47,7 @@ def difference(p1, p2):
     :return: Returns (displacement, delta_x, delta_y, delta_z, delta_w)
     """
     return [
-        math.sqrt((p1.pose.position.x - p2.pose.position.x) ** 2 + \
+        math.sqrt((p1.pose.position.x - p2.pose.position.x) ** 2 +
                   (p1.pose.position.y - p2.pose.position.y) ** 2),
 
         # p1.pose.orientation.x - p2.pose.orientation.x,
@@ -146,14 +145,13 @@ def map_handler(msg):
     y_offset = msg.info.origin.position.y - (2 * CELL_HEIGHT)
     map_origin_x = msg.info.origin.position.x
     map_origin_y = msg.info.origin.position.y
-
-    index = 0
+    print "Map origin: ", map_origin_x, map_origin_y
 
     for y in range(1, map_height + 1):
         for x in range(1, map_width + 1):
             index = (y - 1) * map_width + (x - 1)
             if occupancyGrid[index] == 100:
-                publish_cell(x + x_offset, y + y_offset, 'wall')
+                publish_cell(x, y, 'wall')
     publish_walls()
 
     # Create the costMap
@@ -204,8 +202,9 @@ def publish_cell(x, y, state):
     global expanded_cells, frontier_cells, wall_cells, path_cells
 
     p = Point()
-    p.x = x * CELL_WIDTH
-    p.y = y * CELL_HEIGHT
+    p.x, p.y = map_to_world(x, y)
+    p.x -= CELL_WIDTH / 2
+    p.y -= CELL_HEIGHT / 2
     p.z = 0
 
     if state == 'expanded':
@@ -347,9 +346,9 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
         expanded_cells = []
         for cell in open_list:
             if cell not in closed_list:
-                publish_cell(cell.getXpos() + x_offset + 1, cell.getYpos() + y_offset + 1, 'expanded')
+                publish_cell(cell.getXpos(), cell.getYpos(), 'expanded')
         for cell in closed_list:
-            publish_cell(cell.getXpos() + x_offset + 1, cell.getYpos() + y_offset + 1, 'frontier')
+            publish_cell(cell.getXpos(), cell.getYpos(), 'frontier')
         publish_expanded()
         publish_frontier()
 
@@ -369,7 +368,7 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     publish_frontier()
     # Send path to gridcells
     for p in path:
-        publish_cell(p.getXpos() + x_offset + 1, p.getYpos() + y_offset + 1, 'path')
+        publish_cell(p.getXpos(), p.getYpos(), 'path')
     publish_path()
     return path_msg
 
@@ -474,6 +473,13 @@ def get_waypoints(path):
 
 
 def get_local_waypoints(path):
+    """
+    Get path waypoints from a list of GridCells defining the path from the
+    start to the end of navigation. The waypoints are broken up into smaller
+    chunks to make it easier for the robot to navigate and re-plan.
+    :param path: A list of GridCells defining the path.
+    :return: A nav_msgs/Path message containing extracted the path.
+    """
     waypoints = []
     direction = []
     posePath = []
