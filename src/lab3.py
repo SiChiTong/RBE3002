@@ -535,6 +535,43 @@ def get_waypoints(path):
         posePath.append(pose)
     return posePath
 
+def get_local_waypoints(path):
+    waypoints = []
+    direction = []
+    posePath = []
+    changeX = 0
+    changeY = 0
+    distance = 0
+    # checking if the robot changes direction along the path
+    for i in range(1, len(path)):
+        newdX = path[i].getXpos() - path[i - 1].getXpos()
+        newdY = path[i].getYpos() - path[i - 1].getYpos()
+        # if the robot does change direction, record the direction it was facing, and record the position the robot was at
+        if newdX != changeX or newdY != changeY:
+            direction.append(get_direction(changeX, changeY))
+            waypoints.append(path[i - 1])
+        else
+            distance += CELL_WIDTH
+            if distance >= 1.0
+                direction.append(get_direction(newX, newY))
+                waypoints.append(path[i])
+                distance = 0
+        changeX = newdX
+        changeY = newdY
+    # also record the last position of the robot
+    direction.append(get_direction(changeX, changeY))
+    waypoints.append(path[len(path) - 1])
+    # turn all the data into a list poses
+    x_off = waypoints[0].getXpos() * CELL_WIDTH + 2 * CELL_WIDTH - x
+    y_off = waypoints[0].getYpos() * CELL_WIDTH - y
+    for i in range(0, len(waypoints)):
+        pose = PoseStamped()
+        pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2.5 * CELL_WIDTH + x_off
+        pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH + y_off + 0.2 * CELL_WIDTH
+        pose.pose.orientation.z = direction[i]
+        posePath.append(pose)
+    return posePath
+
 
 def get_direction(x, y):
     """
