@@ -2,10 +2,13 @@
 import math
 import rospy
 import tf
+import actionlib
 from GridCell import GridCell
-from geometry_msgs.msg import Twist, Point, PoseStamped
+from geometry_msgs.msg import Twist, Point, PoseStamped, Pose, Quaternion
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from actionlib_msgs.msg import *
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 
 DEBUG = 0
 CELL_WIDTH = 0.3
@@ -25,112 +28,17 @@ def nav_to_pose(goal_x, goal_y, goal_theta):
     :param goal_theta: The goal theta orientation.
     """
     db_print("navToPose")
-    global x, y, theta, odom_list
-
-    # Get the position of the robot in the global frame
-    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
-
-    # Find the distance and angle between the robot and the goal using global frame coordinates
-    distance = math.sqrt((goal_y - position[1]) ** 2 + (goal_x - position[0]) ** 2)
-    angle = math.atan2(goal_y - position[1], goal_x - position[0])
-
-    # Rotate towards goal point, drive to it, rotate to final pose
-    rotate(math.degrees(angle - theta))
-    drive_straight(0.5, distance)
-    rotate(math.degrees(goal_theta - theta))
-
-
-def publish_twist(u, w):
-    """Publish a twist message to the robot base.
-    :param u: Linear velocity.
-    :param w: Angular velocity.
-    """
-    db_print("publishTwist")
-
-    # Populate message with data
-    msg = Twist()
-    msg.linear.x = u
-    msg.linear.y = 0
-    msg.linear.z = 0
-    msg.angular.x = 0
-    msg.angular.y = 0
-    msg.angular.z = w
-
-    # Publish the message
-    vel_pub.publish(msg)
-
-
-def drive_straight(speed, distance):
-    """This function accepts a speed and a distance for the robot to move in a straight line
-    :param speed: The forward robot speed in m/s.
-    :param distance: The forward distance to move in m.
-    """
-    db_print("driveStraight")
-    global pose
-
-    start_pose = pose
-    displacement = 0
-    r = rospy.Rate(10)  # 10hz
-    while displacement < distance:
-        publish_twist(speed, 0)
-        displacement = difference(pose, start_pose)[0]
-        r.sleep()
-
-
-def rotate(angle):
-    """Accepts an angle and makes the robot rotate around it.
-    :param angle: Angle (degrees)
-    """
-    db_print("rotate")
-    global pose, theta
-
-    # Correct angle to be withing -180 - 180
-    if angle > 180:
-        angle = -(angle - 180)
-    elif angle < -180:
-        angle = -(angle + 180)
-
-    # Convert degrees to radians
-    angle = angle * math.pi / 180
-
-    # Get the current orientation
-    current_angle = theta
-
-    # Figure out the beginning and end orientations
-    start_angle = current_angle
-    end_angle = start_angle + angle
-
-    # Make sure end angle is in range
-    if end_angle < -math.pi or end_angle > math.pi:
-        end_angle = (-math.pi + (abs(end_angle) % math.pi)) * abs(end_angle) / end_angle
-
-    # Constants
-    frequency = 10  # Hz
-    precision = 0.02  # Radians = ~1 degree
-    p, i = 10.0, 0.1  # PID constants
-
-    # Variables
-    error = 100
-    last_error = error
-    total_error = 0
-
-    # While it has not yet reached the desired position, turn
-    r = rospy.Rate(frequency)
-    while abs(error) > precision:
-        total_error += last_error
-        last_error = error
-        error = end_angle - current_angle
-        w = p * error  # - i*total_error
-
-        # Cap the maximum turning rate
-        if w > 1:
-            w = 1
-        elif w < -1:
-            w = -1
-
-        publish_twist(0, w)
-        current_angle = theta
-        r.sleep()
+    global move_base
+    goal = MoveBaseGoal()
+    goal.target_pose.header.frame_id = 'map'
+    goal.target_pose.header.stamp = rospy.Time.now()
+    quat = quaternion_from_euler(0, 0, goal_theta)
+    goal.target_pose.pose = Pose(Point(goal_x, goal_y, 0.0), Quaternion(quat[0], quat[1], quat[2], quat[3]))
+    move_base.send_goal(goal)
+    succeeded = move_base.wait_for_result(rospy.Duration(60))
+    if not succeeded:
+        move_base.cancel_goal()
+        db_print("Failed to reach goal.")
 
 
 def difference(p1, p2):
@@ -212,8 +120,8 @@ def goal_handler(msg):
     pub_path.publish(path_msg)
 
     path = astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
-    # for p in path.poses:
-    #     navToPose(p.pose.position.x, p.pose.position.y, math.degrees(p.pose.orientation.z))
+    for p in path.poses:
+        nav_to_pose(p.pose.position.x, p.pose.position.y, math.degrees(p.pose.orientation.z))
 
 
 def map_handler(msg):
@@ -546,7 +454,8 @@ def get_waypoints(path):
     for i in range(1, len(path)):
         newdX = path[i].getXpos() - path[i - 1].getXpos()
         newdY = path[i].getYpos() - path[i - 1].getYpos()
-        # if the robot does change direction, record the direction it was facing, and record the position the robot was at
+        # if the robot does change direction, record the direction it was facing,
+        # and record the position the robot was at
         if newdX != changeX or newdY != changeY:
             direction.append(get_direction(changeX, changeY))
             waypoints.append(path[i - 1])
@@ -562,6 +471,7 @@ def get_waypoints(path):
         pose.pose.orientation.z = direction[i]
         posePath.append(pose)
     return posePath
+
 
 def get_local_waypoints(path):
     waypoints = []
@@ -634,9 +544,9 @@ def main():
     The main program function.
     """
     db_print('main')
-    global vel_pub, odom_list, pub_path
+    global vel_pub, odom_list, pub_path, move_base
 
-    rospy.init_node('lab3')
+    rospy.init_node('rbe3002_nav_node')
 
     # Publisher for publishing the navigation path determined by A*
     pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
@@ -658,6 +568,8 @@ def main():
 
     # Create an A* ros service
     # rospy.Service('A*', aStar, aStarHandler)
+
+    move_base = actionlib.SimpleActionClient("move_base", MoveBaseAction)
 
     publish_expanded()
     publish_frontier()
