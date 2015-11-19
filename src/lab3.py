@@ -167,9 +167,7 @@ def odom_handler(msg):
         x = trans[0]
         y = trans[1]
         theta = yaw
-        cell = GridCell(map_to_grid(x, y))
-        x_cell = cell.getXpos()
-        y_cell = cell.getYpos()
+        x_cell, y_cell = map_to_grid(x, y)
     except:
         pass
 
@@ -192,9 +190,7 @@ def goal_handler(msg):
     goal_y = pose.position.y
     goal_theta = yaw
 
-    goal_cell = GridCell(map_to_grid(goal_x, goal_y))
-    x_goal_cell = goal_cell.getXpos()
-    y_goal_cell = goal_cell.getYpos()
+    x_goal_cell, y_goal_cell = map_to_grid(goal_x, goal_y)
 
     print 'Goal ', x_goal_cell, y_goal_cell
     print 'Start ', x_cell, y_cell
@@ -227,8 +223,8 @@ def map_handler(msg):
     """
     db_print('mapHandler')
     global expanded_cells, frontier_cells, unexplored_cells, CELL_WIDTH, CELL_HEIGHT
-    global map_width, map_height, occupancyGrid, x_offset, y_offset, costMap
-    global map_origin_x, map_origin_y
+    global map_width, map_height, occupancyGrid, x_offset, y_offset
+    global map_origin_x, map_origin_y, costMap
 
     map_width = msg.info.width
     map_height = msg.info.height
@@ -262,7 +258,6 @@ def map_handler(msg):
     for y in range(0, map_height):  # Rows
         for x in range(0, map_width):  # Columns
             costMap[x][y] = GridCell(x, y, occupancyGrid[count])  # creates all the gridCells
-            costMap[x][y].setH(x_goal_cell, y_goal_cell)  # adds an H value to every gridCell
             count += 1
 
 
@@ -271,11 +266,23 @@ def map_to_grid(global_x, global_y):
     Map a global coordinate to a grid cell position.
     :param global_x: The global X coordinate.
     :param global_y: The global Y coordinate.
-    :return: A grid cell from the map representing the position on the grid.
+    :return: A tuple representing the X, Y coordinate on the grid.
     """
     grid_x = int(math.floor((global_x - map_origin_x) / CELL_WIDTH))
     grid_y = int(math.floor((global_y - map_origin_y) / CELL_HEIGHT))
-    return costMap[grid_x][grid_y]
+    return grid_x, grid_y
+
+
+def map_to_world(grid_x, grid_y):
+    """
+    Map a grid X and Y to a global X and Y.
+    :param grid_x: The grid X position.
+    :param grid_y: The grid Y position.
+    :return: A tuple representing the X, Y coordinate in the world frame.
+    """
+    global_x = (grid_x * CELL_WIDTH + map_origin_x) + (CELL_WIDTH / 2)
+    global_y = (grid_y * CELL_WIDTH + map_origin_y) + (CELL_HEIGHT / 2)
+    return global_x, global_y
 
 
 def publish_cell(x, y, state):
@@ -414,6 +421,10 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     # make the start position the selected cell
     selectedCell = costMap[x_cell][y_cell]
 
+    for y in range(0, map_height):  # Rows
+        for x in range(0, map_width):  # Columns
+            costMap[x][y].setH(x_goal_cell, y_goal_cell)  # adds an H value to every gridCell
+
     while (selectedCell != costMap[x_goal_cell][y_goal_cell]):
         closed_list.append(selectedCell)
         neighbors = unexplored_neighbors(selectedCell, open_list, closed_list, costMap)
@@ -549,8 +560,9 @@ def get_waypoints(path):
     y_off = waypoints[0].getYpos() * CELL_WIDTH - y
     for i in range(0, len(waypoints)):
         pose = PoseStamped()
-        pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2.5 * CELL_WIDTH + x_off
-        pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH + y_off + 0.2 * CELL_WIDTH
+        # pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2.5 * CELL_WIDTH + x_off
+        # pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH + y_off + 0.2 * CELL_WIDTH
+        pose.pose.position.x, pose.pose.position.y = map_to_world(waypoints[i].getXpos(), waypoints[i].getYpos())
         pose.pose.orientation.z = direction[i]
         posePath.append(pose)
     return posePath
