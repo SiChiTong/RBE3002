@@ -167,8 +167,9 @@ def odom_handler(msg):
         x = trans[0]
         y = trans[1]
         theta = yaw
-        x_cell = int((x - 2 * CELL_WIDTH) // CELL_WIDTH)
-        y_cell = int(y // CELL_WIDTH)
+        cell = GridCell(map_to_grid(x, y))
+        x_cell = cell.getXpos()
+        y_cell = cell.getYpos()
     except:
         pass
 
@@ -191,8 +192,9 @@ def goal_handler(msg):
     goal_y = pose.position.y
     goal_theta = yaw
 
-    x_goal_cell = int((goal_x - 2 * CELL_WIDTH) // CELL_WIDTH)
-    y_goal_cell = int(goal_y // CELL_WIDTH)
+    goal_cell = GridCell(map_to_grid(goal_x, goal_y))
+    x_goal_cell = goal_cell.getXpos()
+    y_goal_cell = goal_cell.getYpos()
 
     print 'Goal ', x_goal_cell, y_goal_cell
     print 'Start ', x_cell, y_cell
@@ -225,7 +227,8 @@ def map_handler(msg):
     """
     db_print('mapHandler')
     global expanded_cells, frontier_cells, unexplored_cells, CELL_WIDTH, CELL_HEIGHT
-    global map_width, map_height, occupancyGrid, x_offset, y_offset
+    global map_width, map_height, occupancyGrid, x_offset, y_offset, costMap
+    global map_origin_x, map_origin_y
 
     map_width = msg.info.width
     map_height = msg.info.height
@@ -237,6 +240,8 @@ def map_handler(msg):
 
     x_offset = msg.info.origin.position.x + (2 * CELL_WIDTH)
     y_offset = msg.info.origin.position.y - (2 * CELL_HEIGHT)
+    map_origin_x = msg.info.origin.position.x
+    map_origin_y = msg.info.origin.position.y
 
     index = 0
 
@@ -246,6 +251,31 @@ def map_handler(msg):
             if occupancyGrid[index] == 100:
                 publish_cell(x + x_offset, y + y_offset, 'wall')
     publish_walls()
+
+    # Create the costMap
+    costMap = [[0 for x in range(map_height)] for x in range(map_width)]
+
+    count = 0
+    # iterating through every position in the matrix
+    # OccupancyGrid is in row-major order
+    # Items in rows are displayed in contiguous memory
+    for y in range(0, map_height):  # Rows
+        for x in range(0, map_width):  # Columns
+            costMap[x][y] = GridCell(x, y, occupancyGrid[count])  # creates all the gridCells
+            costMap[x][y].setH(x_goal_cell, y_goal_cell)  # adds an H value to every gridCell
+            count += 1
+
+
+def map_to_grid(global_x, global_y):
+    """
+    Map a global coordinate to a grid cell position.
+    :param global_x: The global X coordinate.
+    :param global_y: The global Y coordinate.
+    :return: A grid cell from the map representing the position on the grid.
+    """
+    grid_x = int(math.floor((global_x - map_origin_x) / CELL_WIDTH))
+    grid_y = int(math.floor((global_y - map_origin_y) / CELL_HEIGHT))
+    return costMap[grid_x][grid_y]
 
 
 def publish_cell(x, y, state):
@@ -373,19 +403,6 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     :return: The path from the starting pose to the ending pose planned by the algorithm.
     """
     global frontier_cells, expanded_cells
-
-    # Create the costMap
-    costMap = [[0 for x in range(map_height)] for x in range(map_width)]
-
-    count = 0
-    # iterating through every position in the matrix
-    # OccupancyGrid is in row-major order
-    # Items in rows are displayed in contiguous memory
-    for y in range(0, map_height):  # Rows
-        for x in range(0, map_width):  # Columns
-            costMap[x][y] = GridCell(x, y, occupancyGrid[count])  # creates all the gridCells
-            costMap[x][y].setH(x_goal_cell, y_goal_cell)  # adds an H value to every gridCell
-            count += 1
 
     # Keep track of explored cells
     open_list = []
@@ -553,10 +570,10 @@ def get_local_waypoints(path):
         if newdX != changeX or newdY != changeY:
             direction.append(get_direction(changeX, changeY))
             waypoints.append(path[i - 1])
-        else
+        else:
             distance += CELL_WIDTH
-            if distance >= 1.0
-                direction.append(get_direction(newX, newY))
+            if distance >= 1.0:
+                direction.append(get_direction(newdX, newdY))
                 waypoints.append(path[i])
                 distance = 0
         changeX = newdX

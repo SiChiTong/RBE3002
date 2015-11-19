@@ -2,3 +2,4 @@
 *example*
 *.pyc
 *.idea/*
+*.DS_Store
