@@ -17,7 +17,7 @@ class GridCell:
         :param goalX: The goal X position on the grid.
         :param goalY: The goal Y position on the grid.
         """
-        self.Hval = abs(goalX - self.Xpos) + abs(goalY - self.Ypos)
+        self.Hval = (abs(goalX - self.Xpos) + abs(goalY - self.Ypos)) * 10
 
     def setParent(self, parentCell):
         """

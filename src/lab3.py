@@ -556,8 +556,6 @@ def get_waypoints(path):
     direction.append(get_direction(changeX, changeY))
     waypoints.append(path[len(path) - 1])
     # turn all the data into a list poses
-    x_off = waypoints[0].getXpos() * CELL_WIDTH + 2 * CELL_WIDTH - x
-    y_off = waypoints[0].getYpos() * CELL_WIDTH - y
     for i in range(0, len(waypoints)):
         pose = PoseStamped()
         pose.pose.position.x, pose.pose.position.y = map_to_world(waypoints[i].getXpos(), waypoints[i].getYpos())
@@ -593,8 +591,6 @@ def get_local_waypoints(path):
     direction.append(get_direction(changeX, changeY))
     waypoints.append(path[len(path) - 1])
     # turn all the data into a list poses
-    x_off = waypoints[0].getXpos() * CELL_WIDTH + 2 * CELL_WIDTH - x
-    y_off = waypoints[0].getYpos() * CELL_WIDTH - y
     for i in range(0, len(waypoints)):
         pose = PoseStamped()
         pose.pose.position.x, pose.pose.position.y = map_to_world(waypoints[i].getXpos(), waypoints[i].getYpos())
