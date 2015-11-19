@@ -195,6 +195,7 @@ def goal_handler(msg):
     y_goal_cell = int(goal_y // CELL_WIDTH)
 
     print 'Goal ', x_goal_cell, y_goal_cell
+    print 'Start ', x_cell, y_cell
 
     path_cells = []
     expanded_cells = []
@@ -229,6 +230,7 @@ def map_handler(msg):
     map_width = msg.info.width
     map_height = msg.info.height
     occupancyGrid = msg.data
+    print map_width, map_height
 
     CELL_WIDTH = msg.info.resolution
     CELL_HEIGHT = msg.info.resolution
@@ -243,6 +245,7 @@ def map_handler(msg):
             index = (y - 1) * map_width + (x - 1)
             if occupancyGrid[index] == 100:
                 publish_cell(x + x_offset, y + y_offset, 'wall')
+    publish_walls()
 
 
 def publish_cell(x, y, state):
@@ -372,7 +375,7 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     global frontier_cells, expanded_cells
 
     # Create the costMap
-    costMap = [[0 for x in range(map_width)] for x in range(map_height)]
+    costMap = [[0 for x in range(map_height)] for x in range(map_width)]
 
     count = 0
     # iterating through every position in the matrix
