@@ -452,7 +452,7 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     path = list(reversed(path))
     print path
     # Publish path
-    waypoints = get_waypoints(path)
+    waypoints = get_local_waypoints(path)
     path_msg = Path()
     path_msg.header.frame_id = 'map'
     path_msg.poses.extend(waypoints)
@@ -560,8 +560,6 @@ def get_waypoints(path):
     y_off = waypoints[0].getYpos() * CELL_WIDTH - y
     for i in range(0, len(waypoints)):
         pose = PoseStamped()
-        # pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2.5 * CELL_WIDTH + x_off
-        # pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH + y_off + 0.2 * CELL_WIDTH
         pose.pose.position.x, pose.pose.position.y = map_to_world(waypoints[i].getXpos(), waypoints[i].getYpos())
         pose.pose.orientation.z = direction[i]
         posePath.append(pose)
@@ -578,7 +576,8 @@ def get_local_waypoints(path):
     for i in range(1, len(path)):
         newdX = path[i].getXpos() - path[i - 1].getXpos()
         newdY = path[i].getYpos() - path[i - 1].getYpos()
-        # if the robot does change direction, record the direction it was facing, and record the position the robot was at
+        # if the robot does change direction, record the direction it was facing,
+        # and record the position the robot was at
         if newdX != changeX or newdY != changeY:
             direction.append(get_direction(changeX, changeY))
             waypoints.append(path[i - 1])
@@ -598,8 +597,7 @@ def get_local_waypoints(path):
     y_off = waypoints[0].getYpos() * CELL_WIDTH - y
     for i in range(0, len(waypoints)):
         pose = PoseStamped()
-        pose.pose.position.x = waypoints[i].getXpos() * CELL_WIDTH + 2.5 * CELL_WIDTH + x_off
-        pose.pose.position.y = waypoints[i].getYpos() * CELL_WIDTH + y_off + 0.2 * CELL_WIDTH
+        pose.pose.position.x, pose.pose.position.y = map_to_world(waypoints[i].getXpos(), waypoints[i].getYpos())
         pose.pose.orientation.z = direction[i]
         posePath.append(pose)
     return posePath
