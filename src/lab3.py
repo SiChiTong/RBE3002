@@ -1,6 +1,5 @@
 #!/usr/bin/python
 import math
-import numpy
 import rospy
 import tf
 from GridCell import GridCell
@@ -36,7 +35,7 @@ def nav_to_pose(goal_x, goal_y, goal_theta):
 
     # Find the distance and angle between the robot and the goal using global frame coordinates
     distance = math.sqrt((goal_y - position[1]) ** 2 + (goal_x - position[0]) ** 2)
-    angle = math.atan2(goal_x - position[0], goal_y - position[1])
+    angle = math.atan2(goal_y - position[1], goal_x - position[0])
 
     # Rotate towards goal point, drive to it, rotate to final pose
     rotate(math.degrees(angle - theta))
@@ -82,75 +81,59 @@ def drive_straight(speed, distance):
 
 
 def rotate(angle):
+    """Accepts an angle and makes the robot rotate around it.
+    :param angle: Angle (degrees)
     """
-    Accepts an angle and makes the robot rotate around it.
-    :param angle: The angle in radians to rotate around.
-    """
-    global odom_list
-    global pose
+    db_print("rotate")
+    global pose, theta
 
-    # This node was created using Coordinate system transforms and numpy arrays.
-    # The goal is measured in the turtlebot's frame, transformed to the odom.frame
-    transformer = tf.TransformerROS()
-    rotation = numpy.array([[math.cos(angle), -math.sin(angle), 0],  # Create goal rotation
-                            [math.sin(angle), math.cos(angle), 0],
-                            [0, 0, 1]])
+    # Correct angle to be withing -180 - 180
+    if angle > 180:
+        angle = -(angle - 180)
+    elif angle < -180:
+        angle = -(angle + 180)
 
-    # Get transforms for frames
-    odom_list.waitForTransform('odom', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
-    (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
-    T_o_t = transformer.fromTranslationRotation(trans, rot)
-    R_o_t = T_o_t[0:3, 0:3]
+    # Convert degrees to radians
+    angle = angle * math.pi / 180
 
-    # Setup goal matrix
-    goal_rot = numpy.dot(rotation, R_o_t)
-    goal_o = numpy.array([[goal_rot[0, 0], goal_rot[0, 1], goal_rot[0, 2], T_o_t[0, 3]],
-                          [goal_rot[1, 0], goal_rot[1, 1], goal_rot[1, 2], T_o_t[1, 3]],
-                          [goal_rot[2, 0], goal_rot[2, 1], goal_rot[2, 2], T_o_t[2, 3]],
-                          [0, 0, 0, 1]])
+    # Get the current orientation
+    current_angle = theta
 
-    # Continues creating and matching coordinate transforms.
-    done = False
-    while not done and not rospy.is_shutdown():
-        (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
-        state = transformer.fromTranslationRotation(trans, rot)
-        within_tolerance = abs((state - goal_o)) < .2
-        if within_tolerance.all():
-            spin_wheels(0, 0, 0)
-            done = True
-        else:
-            if angle > 0:
-                spin_wheels(1, -1, .1)
-            else:
-                spin_wheels(-1, 1, .1)
+    # Figure out the beginning and end orientations
+    start_angle = current_angle
+    end_angle = start_angle + angle
 
+    # Make sure end angle is in range
+    if end_angle < -math.pi or end_angle > math.pi:
+        end_angle = (-math.pi + (abs(end_angle) % math.pi)) * abs(end_angle) / end_angle
 
-def spin_wheels(u1, u2, time):
-    """
-    This function accepts two wheel velocities and a time interval.
-    :param u1: Wheel 1 speed.
-    :param u2: Wheel 2 speed.
-    :param time: Movement time.
-    """
-    global vel_pub
+    # Constants
+    frequency = 10  # Hz
+    precision = 0.02  # Radians = ~1 degree
+    p, i = 10.0, 0.1  # PID constants
 
-    r = wheel_rad
-    b = wheel_base
-    # compute wheel speeds
-    u = (r / 2) * (u1 + u2)
-    w = (r / b) * (u1 - u2)
-    start = rospy.Time().now().secs
-    # create movement and stop messages
-    move_msg = Twist()
-    move_msg.linear.x = u
-    move_msg.angular.z = w
-    stop_msg = Twist()
-    stop_msg.linear.x = 0
-    stop_msg.angular.z = 0
-    # publish move message for desired time
-    while rospy.Time().now().secs - start < time and not rospy.is_shutdown():
-        vel_pub.publish(move_msg)
-    vel_pub.publish(stop_msg)
+    # Variables
+    error = 100
+    last_error = error
+    total_error = 0
+
+    # While it has not yet reached the desired position, turn
+    r = rospy.Rate(frequency)
+    while abs(error) > precision:
+        total_error += last_error
+        last_error = error
+        error = end_angle - current_angle
+        w = p * error  # - i*total_error
+
+        # Cap the maximum turning rate
+        if w > 1:
+            w = 1
+        elif w < -1:
+            w = -1
+
+        publish_twist(0, w)
+        current_angle = theta
+        r.sleep()
 
 
 def difference(p1, p2):
@@ -663,7 +646,7 @@ def main():
     The main program function.
     """
     db_print('main')
-    global vel_pub, odom_list, pub_path, move_base
+    global vel_pub, odom_list, pub_path
 
     rospy.init_node('rbe3002_nav_node')
 
