@@ -1,17 +1,19 @@
 #!/usr/bin/python
 import math
+import numpy
 import rospy
 import tf
-import actionlib
 from GridCell import GridCell
-from geometry_msgs.msg import Twist, Point, PoseStamped, Pose, Quaternion
+from geometry_msgs.msg import Twist, Point, PoseStamped
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from tf.transformations import euler_from_quaternion
 
 DEBUG = 0
 CELL_WIDTH = 0.3
 CELL_HEIGHT = 0.3
+
+wheel_rad = 3.5 / 100.0  # cm
+wheel_base = 23.0 / 100.0  # cm
 
 expanded_cells = []
 wall_cells = []
@@ -27,17 +29,128 @@ def nav_to_pose(goal_x, goal_y, goal_theta):
     :param goal_theta: The goal theta orientation.
     """
     db_print("navToPose")
-    global move_base
-    goal = MoveBaseGoal()
-    goal.target_pose.header.frame_id = 'map'
-    goal.target_pose.header.stamp = rospy.Time.now()
-    quat = quaternion_from_euler(0, 0, goal_theta)
-    goal.target_pose.pose = Pose(Point(goal_x, goal_y, 0.0), Quaternion(quat[0], quat[1], quat[2], quat[3]))
-    move_base.send_goal(goal)
-    succeeded = move_base.wait_for_result(rospy.Duration(60))
-    if not succeeded:
-        move_base.cancel_goal()
-        db_print("Failed to reach goal.")
+    global x, y, theta, odom_list
+
+    # Get the position of the robot in the global frame
+    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+
+    # Find the distance and angle between the robot and the goal using global frame coordinates
+    distance = math.sqrt((goal_y - position[1]) ** 2 + (goal_x - position[0]) ** 2)
+    angle = math.atan2(goal_x - position[0], goal_y - position[1])
+
+    # Rotate towards goal point, drive to it, rotate to final pose
+    rotate(math.degrees(angle - theta))
+    drive_straight(0.5, distance)
+    rotate(math.degrees(goal_theta - theta))
+
+
+def publish_twist(u, w):
+    """Publish a twist message to the robot base.
+    :param u: Linear velocity.
+    :param w: Angular velocity.
+    """
+    db_print("publishTwist")
+
+    # Populate message with data
+    msg = Twist()
+    msg.linear.x = u
+    msg.linear.y = 0
+    msg.linear.z = 0
+    msg.angular.x = 0
+    msg.angular.y = 0
+    msg.angular.z = w
+
+    # Publish the message
+    vel_pub.publish(msg)
+
+
+def drive_straight(speed, distance):
+    """This function accepts a speed and a distance for the robot to move in a straight line
+    :param speed: The forward robot speed in m/s.
+    :param distance: The forward distance to move in m.
+    """
+    db_print("driveStraight")
+    global pose
+
+    start_pose = pose
+    displacement = 0
+    r = rospy.Rate(10)  # 10hz
+    while displacement < distance:
+        publish_twist(speed, 0)
+        displacement = difference(pose, start_pose)[0]
+        r.sleep()
+
+
+def rotate(angle):
+    """
+    Accepts an angle and makes the robot rotate around it.
+    :param angle: The angle in radians to rotate around.
+    """
+    global odom_list
+    global pose
+
+    # This node was created using Coordinate system transforms and numpy arrays.
+    # The goal is measured in the turtlebot's frame, transformed to the odom.frame
+    transformer = tf.TransformerROS()
+    rotation = numpy.array([[math.cos(angle), -math.sin(angle), 0],  # Create goal rotation
+                            [math.sin(angle), math.cos(angle), 0],
+                            [0, 0, 1]])
+
+    # Get transforms for frames
+    odom_list.waitForTransform('odom', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
+    (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
+    T_o_t = transformer.fromTranslationRotation(trans, rot)
+    R_o_t = T_o_t[0:3, 0:3]
+
+    # Setup goal matrix
+    goal_rot = numpy.dot(rotation, R_o_t)
+    goal_o = numpy.array([[goal_rot[0, 0], goal_rot[0, 1], goal_rot[0, 2], T_o_t[0, 3]],
+                          [goal_rot[1, 0], goal_rot[1, 1], goal_rot[1, 2], T_o_t[1, 3]],
+                          [goal_rot[2, 0], goal_rot[2, 1], goal_rot[2, 2], T_o_t[2, 3]],
+                          [0, 0, 0, 1]])
+
+    # Continues creating and matching coordinate transforms.
+    done = False
+    while not done and not rospy.is_shutdown():
+        (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
+        state = transformer.fromTranslationRotation(trans, rot)
+        within_tolerance = abs((state - goal_o)) < .2
+        if within_tolerance.all():
+            spin_wheels(0, 0, 0)
+            done = True
+        else:
+            if angle > 0:
+                spin_wheels(1, -1, .1)
+            else:
+                spin_wheels(-1, 1, .1)
+
+
+def spin_wheels(u1, u2, time):
+    """
+    This function accepts two wheel velocities and a time interval.
+    :param u1: Wheel 1 speed.
+    :param u2: Wheel 2 speed.
+    :param time: Movement time.
+    """
+    global vel_pub
+
+    r = wheel_rad
+    b = wheel_base
+    # compute wheel speeds
+    u = (r / 2) * (u1 + u2)
+    w = (r / b) * (u1 - u2)
+    start = rospy.Time().now().secs
+    # create movement and stop messages
+    move_msg = Twist()
+    move_msg.linear.x = u
+    move_msg.angular.z = w
+    stop_msg = Twist()
+    stop_msg.linear.x = 0
+    stop_msg.angular.z = 0
+    # publish move message for desired time
+    while rospy.Time().now().secs - start < time and not rospy.is_shutdown():
+        vel_pub.publish(move_msg)
+    vel_pub.publish(stop_msg)
 
 
 def difference(p1, p2):
@@ -203,8 +316,8 @@ def publish_cell(x, y, state):
 
     p = Point()
     p.x, p.y = map_to_world(x, y)
-    p.x -= CELL_WIDTH / 2
-    p.y -= CELL_HEIGHT / 2
+    # p.x -= CELL_WIDTH / 2
+    # p.y -= CELL_HEIGHT / 2
     p.z = 0
 
     if state == 'expanded':
@@ -332,7 +445,7 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
         for x in range(0, map_width):  # Columns
             costMap[x][y].setH(x_goal_cell, y_goal_cell)  # adds an H value to every gridCell
 
-    while (selectedCell != costMap[x_goal_cell][y_goal_cell]):
+    while selectedCell != costMap[x_goal_cell][y_goal_cell]:
         closed_list.append(selectedCell)
         neighbors = unexplored_neighbors(selectedCell, open_list, closed_list, costMap)
         open_list.extend(neighbors)
@@ -574,8 +687,6 @@ def main():
 
     # Create an A* ros service
     # rospy.Service('A*', aStar, aStarHandler)
-
-    move_base = actionlib.SimpleActionClient("move_base", MoveBaseAction)
 
     publish_expanded()
     publish_frontier()
