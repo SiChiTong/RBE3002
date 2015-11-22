@@ -81,6 +81,21 @@ def publish_twist(u, w):
     # Publish the message
     vel_pub.publish(msg)
 
+    #This function accepts two wheel velocities and a time interval. AYYYY THIS WORKS
+def spinWheels(u1, u2, time):
+    global wheel_base
+    global pub
+
+    lin = (u1 + u2) / 2
+    ang = (u1 - u2) / wheel_base
+    stopTime = rospy.Time.now().secs + time
+    twist = Twist();
+    twist.linear.x = lin
+    twist.angular.z = ang
+    while (rospy.Time.now().secs <= stopTime and not rospy.is_shutdown()):
+        pub.publish(twist)
+    stopMoving()
+
 
 #This function accepts a speed and a distance for the robot to move in a straight line THIS WORKS TOO WOO!!
 def driveStraight(speed, distance):
