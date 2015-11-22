@@ -660,7 +660,7 @@ def main():
     rospy.Subscriber('/odom', Odometry, odom_handler)
 
     # Subscribe to the map
-    rospy.Subscriber('/map', OccupancyGrid, map_handler)
+    rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
 
     # Subscribe to NavToGoal stuff
     rospy.Subscriber('/navgoal', PoseStamped, goal_handler)
