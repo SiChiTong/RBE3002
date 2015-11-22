@@ -594,7 +594,7 @@ def get_local_waypoints(path):
         else:
             distance += CELL_WIDTH
             if distance >= 1.0:
-                direction.append(get_direction(newdX, newdY))
+                direction.append(direction[-1])
                 waypoints.append(path[i])
                 distance = 0
         changeX = newdX
