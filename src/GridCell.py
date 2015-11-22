@@ -6,10 +6,10 @@ class GridCell:
         self.Ypos = y
         self.occupancyLevel = occupancyLevel
 
-        if occupancyLevel == 100:
-            self.empty = False
-        else:
+        if 50 >= occupancyLevel:
             self.empty = True
+        else:
+            self.empty = False
 
     def setH(self, goalX, goalY):
         """
@@ -93,6 +93,17 @@ class GridCell:
         :return: An int from 0 to 100.
         """
         return self.occupancyLevel
+
+    def setOccupancyLevel(self, occupancyval):
+        """
+        Set the square occupancy level.
+        :param occupancyval: The new occupancy level.
+        """
+        self.occupancyLevel = occupancyval
+        if 50 >= self.occupancyLevel:
+            self.empty = True
+        else:
+            self.empty = False
 
     def __str__(self):
         return str(self.getXpos()) + ' ' + str(self.getYpos()) + ' ' + str(self.isEmpty())

@@ -3,7 +3,7 @@ import math
 import rospy
 import tf
 from GridCell import GridCell
-from geometry_msgs.msg import Twist, Point, PoseStamped
+from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
 from tf.transformations import euler_from_quaternion
 
@@ -18,139 +18,6 @@ expanded_cells = []
 wall_cells = []
 path_cells = []
 frontier_cells = []
-
-
-def nav_to_pose(goal_x, goal_y, goal_theta):
-    """drive to a goal subscribed as /move_base_simple/goal.
-    Moves to a pose in the world frame.
-    :param goal_x: The goal X position.
-    :param goal_y: The goal Y position.
-    :param goal_theta: The goal theta orientation.
-    """
-    db_print("navToPose")
-    global x, y, theta, odom_list
-
-    # Get the position of the robot in the global frame
-    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
-
-    # Find the distance and angle between the robot and the goal using global frame coordinates
-    distance = math.sqrt((goal_y - position[1]) ** 2 + (goal_x - position[0]) ** 2)
-    angle = math.atan2(goal_y - position[1], goal_x - position[0])
-
-    # Rotate towards goal point, drive to it, rotate to final pose
-    rotate(math.degrees(angle - theta))
-    drive_straight(0.5, distance)
-    rotate(math.degrees(goal_theta - theta))
-
-
-def publish_twist(u, w):
-    """Publish a twist message to the robot base.
-    :param u: Linear velocity.
-    :param w: Angular velocity.
-    """
-    db_print("publishTwist")
-
-    # Populate message with data
-    msg = Twist()
-    msg.linear.x = u
-    msg.linear.y = 0
-    msg.linear.z = 0
-    msg.angular.x = 0
-    msg.angular.y = 0
-    msg.angular.z = w
-
-    # Publish the message
-    vel_pub.publish(msg)
-
-
-def drive_straight(speed, distance):
-    """This function accepts a speed and a distance for the robot to move in a straight line
-    :param speed: The forward robot speed in m/s.
-    :param distance: The forward distance to move in m.
-    """
-    db_print("driveStraight")
-    global pose
-
-    start_pose = pose
-    displacement = 0
-    r = rospy.Rate(10)  # 10hz
-    while displacement < distance:
-        publish_twist(speed, 0)
-        displacement = difference(pose, start_pose)[0]
-        r.sleep()
-
-
-def rotate(angle):
-    """Accepts an angle and makes the robot rotate around it.
-    :param angle: Angle (degrees)
-    """
-    db_print("rotate")
-    global pose, theta
-
-    # Correct angle to be withing -180 - 180
-    if angle > 180:
-        angle = -(angle - 180)
-    elif angle < -180:
-        angle = -(angle + 180)
-
-    # Convert degrees to radians
-    angle = angle * math.pi / 180
-
-    # Get the current orientation
-    current_angle = theta
-
-    # Figure out the beginning and end orientations
-    start_angle = current_angle
-    end_angle = start_angle + angle
-
-    # Make sure end angle is in range
-    if end_angle < -math.pi or end_angle > math.pi:
-        end_angle = (-math.pi + (abs(end_angle) % math.pi)) * abs(end_angle) / end_angle
-
-    # Constants
-    frequency = 10  # Hz
-    precision = 0.02  # Radians = ~1 degree
-    p, i = 10.0, 0.1  # PID constants
-
-    # Variables
-    error = 100
-    last_error = error
-    total_error = 0
-
-    # While it has not yet reached the desired position, turn
-    r = rospy.Rate(frequency)
-    while abs(error) > precision:
-        total_error += last_error
-        last_error = error
-        error = end_angle - current_angle
-        w = p * error  # - i*total_error
-
-        # Cap the maximum turning rate
-        if w > 1:
-            w = 1
-        elif w < -1:
-            w = -1
-
-        publish_twist(0, w)
-        current_angle = theta
-        r.sleep()
-
-
-def difference(p1, p2):
-    """Function that determines the difference in two poses
-    :param p1: Starting pose
-    :param p2: Ending pose.
-    :return: Returns (displacement, delta_x, delta_y, delta_z, delta_w)
-    """
-    return [
-        math.sqrt((p1.pose.position.x - p2.pose.position.x) ** 2 +
-                  (p1.pose.position.y - p2.pose.position.y) ** 2),
-
-        # p1.pose.orientation.x - p2.pose.orientation.x,
-        # p1.pose.orientation.y - p2.pose.orientation.y,
-        # p1.pose.orientation.z - p2.pose.orientation.z,
-        # p1.pose.orientation.w - p2.pose.orientation.w
-    ]
 
 
 def odom_handler(msg):
@@ -214,16 +81,15 @@ def goal_handler(msg):
     path_msg.poses.append(pose_tmp)
     pub_path.publish(path_msg)
 
-    path = astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
-    for p in path.poses:
-        nav_to_pose(p.pose.position.x, p.pose.position.y, math.degrees(p.pose.orientation.z))
+    astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
 
 
 def map_handler(msg):
     """
-    Handles when a new map message arrives.
+    Handles when a new global map message arrives.
     :param msg: The map message to process.
     """
+    global x_goal_cell, y_goal_cell
     db_print('mapHandler')
     global expanded_cells, frontier_cells, unexplored_cells, CELL_WIDTH, CELL_HEIGHT
     global map_width, map_height, occupancyGrid, x_offset, y_offset
@@ -261,6 +127,59 @@ def map_handler(msg):
         for x in range(0, map_width):  # Columns
             costMap[x][y] = GridCell(x, y, occupancyGrid[count])  # creates all the gridCells
             count += 1
+
+    try:
+        if (x_goal_cell != x_cell) and (y_goal_cell != y_cell):
+            print "Not at goal, re-planning..."
+            print 'Goal ', x_goal_cell, y_goal_cell
+            print 'Start ', x_cell, y_cell
+            astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
+    except NameError:
+        print "No goal yet."
+
+
+def local_map_handler(msg):
+    """
+    Handles when a new local map message arrives.
+    :param msg: The map message to process.
+    """
+    global x_goal_cell, y_goal_cell
+    global expanded_cells, frontier_cells, unexplored_cells, CELL_WIDTH, CELL_HEIGHT
+    global map_width, map_height
+    global map_origin_x, map_origin_y, costMap
+
+    local_map_width = msg.info.width
+    local_map_height = msg.info.height
+    local_occupancy_grid = msg.data
+    print "Local dimensions: ", local_map_width, local_map_height
+
+    local_origin_x = msg.info.origin.position.x
+    local_origin_y = msg.info.origin.position.y
+    print "Map origin: ", local_origin_x, local_origin_y
+
+    # iterating through every position in the matrix
+    # OccupancyGrid is in row-major order
+    # Items in rows are displayed in contiguous memory
+    try:
+        count = 0
+        x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
+        for y in range(y_cell_start, y_cell_start + local_map_height):  # Rows
+            for x in range(x_cell_start, x_cell_start + local_map_width):  # Columns
+                costMap[x][y].setOccupancyLevel(local_occupancy_grid[count]) # update gridCells based on local map
+                count += 1
+    except NameError:
+        print "No global map yet."
+    except AttributeError:
+        print "No global map yet."
+
+    try:
+        if (x_goal_cell != x_cell) and (y_goal_cell != y_cell):
+            print "Not at goal, re-planning..."
+            print 'Goal ', x_goal_cell, y_goal_cell
+            print 'Start ', x_cell, y_cell
+            astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
+    except NameError:
+        print "No goal yet."
 
 
 def map_to_grid(global_x, global_y):
@@ -413,6 +332,11 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     :return: The path from the starting pose to the ending pose planned by the algorithm.
     """
     global frontier_cells, expanded_cells
+
+    goal_cell = costMap[x_goal_cell][y_goal_cell]
+    if not goal_cell.isEmpty():
+        print "No thanks"
+        return
 
     # Keep track of explored cells
     open_list = []
@@ -648,19 +572,19 @@ def main():
     db_print('main')
     global vel_pub, odom_list, pub_path
 
-    rospy.init_node('rbe3002_nav_node')
+    rospy.init_node('rbe3002_planning_node')
 
     # Publisher for publishing the navigation path determined by A*
     pub_path = rospy.Publisher('/nav_path', Path, queue_size=1)
 
-    # Publisher for commanding robot motion
-    vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist, queue_size=10)
-
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
 
-    # Subscribe to the map
+    # Subscribe to the global map
     rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
+
+    # Subscribe to the local map
+    rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
 
     # Subscribe to NavToGoal stuff
     rospy.Subscriber('/navgoal', PoseStamped, goal_handler)
