@@ -151,35 +151,27 @@ def local_map_handler(msg):
     local_map_width = msg.info.width
     local_map_height = msg.info.height
     local_occupancy_grid = msg.data
-    print "Local dimensions: ", local_map_width, local_map_height
+    # print "Local dimensions: ", local_map_width, local_map_height
 
     local_origin_x = msg.info.origin.position.x
     local_origin_y = msg.info.origin.position.y
-    print "Map origin: ", local_origin_x, local_origin_y
-
-    # iterating through every position in the matrix
-    # OccupancyGrid is in row-major order
-    # Items in rows are displayed in contiguous memory
     try:
+        (position, orientation) = odom_list.lookupTransform('odom', 'map', rospy.Time(0))
+        local_origin_x += position[0]
+        local_origin_y += position[1]
+        # print "Map origin: ", local_origin_x, local_origin_y
+
+        # iterating through every position in the matrix
+        # OccupancyGrid is in row-major order
+        # Items in rows are displayed in contiguous memory
         count = 0
         x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
         for y in range(y_cell_start, y_cell_start + local_map_height):  # Rows
             for x in range(x_cell_start, x_cell_start + local_map_width):  # Columns
                 costMap[x][y].setOccupancyLevel(local_occupancy_grid[count]) # update gridCells based on local map
                 count += 1
-    except NameError:
-        print "No global map yet."
-    except AttributeError:
-        print "No global map yet."
-
-    try:
-        if (x_goal_cell != x_cell) and (y_goal_cell != y_cell):
-            print "Not at goal, re-planning..."
-            print 'Goal ', x_goal_cell, y_goal_cell
-            print 'Start ', x_cell, y_cell
-            astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
-    except NameError:
-        print "No goal yet."
+    except:
+        print "Map not ready yet."
 
 
 def map_to_grid(global_x, global_y):
