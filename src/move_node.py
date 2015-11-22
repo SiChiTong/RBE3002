@@ -14,30 +14,55 @@ def nav_path_handler(path_msg):
     :param path_msg: The path to navigate along.
     """
     for p in path_msg.poses:
-        nav_to_pose(p.pose.position.x, p.pose.position.y, math.degrees(p.pose.orientation.z))
+        navToPose(p.pose.position.x, p.pose.position.y, p.pose.orientation.z)
 
 
-def nav_to_pose(goal_x, goal_y, goal_theta):
-    """drive to a goal subscribed as /move_base_simple/goal.
-    Moves to a pose in the world frame.
-    :param goal_x: The goal X position.
-    :param goal_y: The goal Y position.
-    :param goal_theta: The goal theta orientation.
-    """
-    global x, y, theta, odom_list
+#drive to a goal subscribed as /move_base_simple/goal
+def navToPose(goal):
+    print "In navToPose"
+    global odom_list
+    global pose 	
+    global pub
+    
+    x0 = pose.pose.position.x   #Set origin
+    y0 = pose.pose.position.y
 
-    # Get the position of the robot in the global frame
-    (position, orientation) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+    transformer = tf.TransformerROS()	
+    odom_list.waitForTransform('map', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
+    (trans, rot) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+    state = transformer.fromTranslationRotation(trans, rot)
+    theta0 = math.acos(state[1,1]) * 180 / math.pi
 
-    # Find the distance and angle between the robot and the goal using global frame coordinates
-    distance = math.sqrt((goal_y - position[1]) ** 2 + (goal_x - position[0]) ** 2)
-    angle = math.atan2(goal_y - position[1], goal_x - position[0])
+    print x0
+    print y0
+    print theta0
 
-    # Rotate towards goal point, drive to it, rotate to final pose
-    rotate(math.degrees(angle - theta))
-    drive_straight(0.5, distance)
-    rotate(math.degrees(goal_theta - theta))
+    x1 = goal.pose.position.x
+    y1 = goal.pose.position.y
+    theta1 = goal.pose.orientation.z
 
+    print x1
+    print y1
+    print theta1
+
+    rot1 = math.atan((y1-y0) / (x1-x0)) - theta0
+
+    print rot1
+
+    rotate(rot1)
+
+    distance = math.sqrt(math.pow(x1-x0,2) + math.pow(y1-y0,2))
+    driveStraight(.25,distance)
+
+    transformer = tf.TransformerROS()	
+    odom_list.waitForTransform('map', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
+    (trans, rot) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+    state = transformer.fromTranslationRotation(trans, rot)
+    theta0 = math.acos(state[1,1]) * 180 / math.pi
+    
+    print theta1 - theta0
+
+    rotate(theta1 - theta0)
 
 def publish_twist(u, w):
     """Publish a twist message to the robot base.
@@ -57,112 +82,89 @@ def publish_twist(u, w):
     vel_pub.publish(msg)
 
 
-def drive_straight(speed, distance):
-    """This function accepts a speed and a distance for the robot to move in a straight line
-    :param speed: The forward robot speed in m/s.
-    :param distance: The forward distance to move in m.
-    """
-    global pose
+#This function accepts a speed and a distance for the robot to move in a straight line THIS WORKS TOO WOO!!
+def driveStraight(speed, distance):
+    global odom_list
+    global pose 	
+    global pub
 
-    start_pose = pose
-    displacement = 0
-    r = rospy.Rate(10)  # 10hz
-    while displacement < distance:
-        publish_twist(speed, 0)
-        displacement = difference(pose, start_pose)[0]
-        r.sleep()
+    x0 = pose.pose.position.x	#Set origin
+    y0 = pose.pose.position.y
+
+    #Loop until the distance between the attached frame and the origin is equal to the
+    #distance specifyed 
+    done = False
+    while (not done and not rospy.is_shutdown()):
+        x1 = pose.pose.position.x
+        y1 = pose.pose.position.y
+        d = math.sqrt(math.pow(x1-x0,2) + math.pow(y1-y0,2))
+        twist = Twist();
+        twist.linear.x = speed
+        twist.angular.z = 0
+        if (d >= distance):
+            done = True
+            stopMoving();
+        else:
+            pub.publish(twist)
+
 
 
 def rotate(angle):
-    """Accepts an angle and makes the robot rotate around it.
-    :param angle: Angle (degrees)
-    """
-    global pose, theta
+    global odom_list
+    global pose
 
-    # Correct angle to be withing -180 - 180
-    if angle > 180:
-        angle = -(angle - 180)
-    elif angle < -180:
-        angle = -(angle + 180)
+    #This node was created using Coordinate system transforms and numpy arrays.
+    #The goal is measured in the turtlebot's frame, transformed to the odom.frame 
+    transformer = tf.TransformerROS()	
+    rotation = numpy.array([[math.cos(angle), -math.sin(angle), 0],	#Create goal rotation
+                            [math.sin(angle), math.cos(angle), 0],
+                            [0,          0,          1]])
 
-    # Convert degrees to radians
-    angle = angle * math.pi / 180
+    #Get transforms for frames
+    odom_list.waitForTransform('odom', 'base_footprint', rospy.Time(0), rospy.Duration(4.0))
+    (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
+    T_o_t = transformer.fromTranslationRotation(trans, rot)
+    R_o_t = T_o_t[0:3,0:3]
 
-    # Get the current orientation
-    current_angle = theta
+    #Setup goal matrix
+    goal_rot = numpy.dot(rotation, R_o_t)
+    goal_o = numpy.array([[goal_rot[0,0], goal_rot[0,1], goal_rot[0,2], T_o_t[0,3]],
+                    [goal_rot[1,0], goal_rot[1,1], goal_rot[1,2], T_o_t[1,3]],
+                    [goal_rot[2,0], goal_rot[2,1], goal_rot[2,2], T_o_t[2,3]],
+                    [0,             0,             0,             1]])
 
-    # Figure out the beginning and end orientations
-    start_angle = current_angle
-    end_angle = start_angle + angle
-
-    # Make sure end angle is in range
-    if end_angle < -math.pi or end_angle > math.pi:
-        end_angle = (-math.pi + (abs(end_angle) % math.pi)) * abs(end_angle) / end_angle
-
-    # Constants
-    frequency = 10  # Hz
-    precision = 0.02  # Radians = ~1 degree
-    p, i = 10.0, 0.1  # PID constants
-
-    # Variables
-    error = 100
-    last_error = error
-    total_error = 0
-
-    # While it has not yet reached the desired position, turn
-    r = rospy.Rate(frequency)
-    while abs(error) > precision:
-        total_error += last_error
-        last_error = error
-        error = end_angle - current_angle
-        w = p * error  # - i*total_error
-
-        # Cap the maximum turning rate
-        if w > 1:
-            w = 1
-        elif w < -1:
-            w = -1
-
-        publish_twist(0, w)
-        current_angle = theta
-        r.sleep()
+    #Continues creating and matching coordinate transforms.
+    done = False
+    while (not done and not rospy.is_shutdown()):
+        (trans, rot) = odom_list.lookupTransform('odom', 'base_footprint', rospy.Time(0))
+        state = transformer.fromTranslationRotation(trans, rot)
+        within_tolerance = abs((state - goal_o)) < .2
+        if ( within_tolerance.all() ):
+            stopMoving()
+            done = True
+        else:
+            if (angle > 0):
+                spinWheels(.05,-.05,.01)
+            else:
+                spinWheels(-.05,.05,.01)
 
 
-def difference(p1, p2):
-    """Function that determines the difference in two poses
-    :param p1: Starting pose
-    :param p2: Ending pose.
-    :return: Returns (displacement, delta_x, delta_y, delta_z, delta_w)
-    """
-    return [
-        math.sqrt((p1.pose.position.x - p2.pose.position.x) ** 2 +
-                  (p1.pose.position.y - p2.pose.position.y) ** 2),
+#stops the robot
+def stopMoving():
+    twist = Twist()
+    twist.linear.x = 0
+    twist.angular.z = 0
+    pub.publish(twist)
 
-        # p1.pose.orientation.x - p2.pose.orientation.x,
-        # p1.pose.orientation.y - p2.pose.orientation.y,
-        # p1.pose.orientation.z - p2.pose.orientation.z,
-        # p1.pose.orientation.w - p2.pose.orientation.w
-    ]
+def readOdom(msg):
+    global pose
+    global odom_tf
 
-
-def odom_handler(msg):
-    """Odometry callback function.
-    :param msg: The odom message.
-    """
-    global x, y, theta, pose
     pose = msg.pose
-
-    try:
-        (trans, rot) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
-
-        # Update the x, y, and theta globals every time something changes
-        roll, pitch, yaw = euler_from_quaternion(rot)
-
-        x = trans[0]
-        y = trans[1]
-        theta = yaw
-    except:
-        pass
+    geo_quat = pose.pose.orientation
+  
+    odom_tf.sendTransform((pose.pose.position.x, pose.pose.position.y, 0),
+        (pose.pose.orientation.x, pose.pose.orientation.y,pose.pose.orientation.z,pose.pose.orientation.w),rospy.Time.now(),"base_footprint","odom")
 
 
 def main():
@@ -172,16 +174,15 @@ def main():
     global vel_pub, odom_list
     rospy.init_node('rbe3002_move_node')
 
-    move_path_sub = rospy.Subscriber('/nav_path', Path, nav_path_handler)
-
-    # Publisher for commanding robot motion
-    vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist, queue_size=10)
-
-    # Subscribe to Odometry changes
-    rospy.Subscriber('/odom', Odometry, odom_handler)
-
-    # Create Odemetry listener and boadcaster
+   # Use this object to get the robot's Odometry 
     odom_list = tf.TransformListener()
+    odom_tf = tf.TransformBroadcaster()
+    odom_tf.sendTransform((0, 0, 0),(0, 0, 0, 1),rospy.Time.now(),"base_footprint","odom")
+    wheel_base = 0.23 #meters    
+    pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist) # Publisher for commanding robot motion
+    bumper_sub = rospy.Subscriber('/mobile_base/events/bumper', BumperEvent, readBumper, queue_size=1) # Callback function to handle bumper events
+    nav_sub = rospy.Subscriber('/move_base_simple/goal/RBE', PoseStamped, navToPose, queue_size=1)
+    sub = rospy.Subscriber("/odom", Odometry, readOdom)
 
     rospy.spin()
 
