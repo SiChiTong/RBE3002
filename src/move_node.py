@@ -5,10 +5,22 @@ import math
 import tf
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry, Path
+from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 
 wheel_rad = 3.5 / 100.0  # cm
 wheel_base = 23.0 / 100.0  # cm
+
+
+def send_move_status(msg):
+    """
+    Send a movement status message.
+    :param msg: A bool, true if moving, false if stopped.
+    """
+    global move_status_pub
+    status_msg = Bool()
+    status_msg.data = msg
+    move_status_pub.publish(status_msg)
 
 
 def nav_path_handler(path_msg):
@@ -17,8 +29,10 @@ def nav_path_handler(path_msg):
     :param path_msg: The path to navigate along.
     """
     print "Got path! ", path_msg
+    send_move_status(True)
     for p in path_msg.poses:
         nav_to_pose(p)
+    send_move_status(False)
 
 
 def send_move_msg(linear_vel, angular_vel):
@@ -218,13 +232,14 @@ def main():
     """
     The main program function.
     """
-    global vel_pub, odom_list, odom_sub
+    global vel_pub, odom_list, odom_sub, move_status_pub
     rospy.init_node('rbe3002_move_node')
 
     odom_list = tf.TransformListener()
     odom_sub = rospy.Subscriber('/odom', Odometry, read_odom)
     vel_pub = rospy.Publisher('/cmd_vel_mux/input/teleop', Twist, queue_size=10)
     rospy.Subscriber('/nav_path', Path, nav_path_handler)
+    move_status_pub = rospy.Publisher('/movement_state', Bool, queue_size=1)
 
     rospy.spin()
 

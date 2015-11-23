@@ -5,6 +5,7 @@ import tf
 from GridCell import GridCell
 from geometry_msgs.msg import Point, PoseStamped
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
+from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 
 DEBUG = 0
@@ -48,7 +49,7 @@ def goal_handler(msg):
     :param msg: The new desired pose (in the world frame) from Rviz.
     """
     db_print('goalHandler')
-    global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, path_cells, expanded_cells, frontier_cells
+    global goal_x, goal_y, goal_theta, x_goal_cell, y_goal_cell, path_cells, expanded_cells, frontier_cells, is_moving
     pose = msg.pose
 
     # Set the goal_x, goal_y, and goal_theta variables
@@ -81,7 +82,24 @@ def goal_handler(msg):
     path_msg.poses.append(pose_tmp)
     pub_path.publish(path_msg)
 
-    astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
+    path_done = False
+    while not path_done:
+        print 'Reached waypoint, replanning...'
+        path_cells = []
+        expanded_cells = []
+        frontier_cells = []
+        path = astar(x_cell, y_cell, x_goal_cell, y_goal_cell)
+        new_path_msg = Path()
+        new_path_msg.header.frame_id = 'map'
+        if len(path.poses) > 1:
+            new_path_msg.poses.append(path.poses[1])
+        else:
+            new_path_msg.poses.append(path.poses[0])
+            path_done = True
+        pub_path.publish(new_path_msg)
+        publish_cells()
+        while is_moving:
+            pass
 
 
 def map_handler(msg):
@@ -375,7 +393,7 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     path_msg = Path()
     path_msg.header.frame_id = 'map'
     path_msg.poses.extend(waypoints)
-    pub_path.publish(path_msg)
+    # pub_path.publish(path_msg)
     publish_expanded()
     publish_frontier()
     # Send path to gridcells
@@ -557,12 +575,21 @@ def get_direction(x, y):
             return -math.pi / 4
 
 
+def move_state_handler(msg):
+    """
+    Handle the movement state.
+    :param msg: The state message from the publisher.
+    """
+    global is_moving
+    is_moving = msg.data
+
+
 def main():
     """
     The main program function.
     """
     db_print('main')
-    global vel_pub, odom_list, pub_path
+    global vel_pub, odom_list, pub_path, is_moving
 
     rospy.init_node('rbe3002_planning_node')
 
@@ -580,6 +607,10 @@ def main():
 
     # Subscribe to NavToGoal stuff
     rospy.Subscriber('/navgoal', PoseStamped, goal_handler)
+
+    # Subscribe to movement status.
+    rospy.Subscriber('movement_state', Bool, move_state_handler)
+    is_moving = False
 
     # Create Odemetry listener and boadcaster 
     odom_list = tf.TransformListener()
