@@ -127,10 +127,10 @@ def map_handler(msg):
     map_origin_y = msg.info.origin.position.y
     print "Map origin: ", map_origin_x, map_origin_y
 
-    for y in range(1, map_height + 1):
-        for x in range(1, map_width + 1):
-            index = (y - 1) * map_width + (x - 1)
-            if occupancyGrid[index] == 100:
+    for y in range(0, map_height):
+        for x in range(0, map_width):
+            index = y * map_width + x
+            if occupancyGrid[index] > 50:
                 publish_cell(x, y, 'wall')
     publish_walls()
 
