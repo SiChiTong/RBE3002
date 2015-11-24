@@ -85,6 +85,8 @@ def goal_handler(msg):
     path_done = False
     while not path_done:
         print 'Reached waypoint, replanning...'
+        if abs(x_goal_cell - x_cell) < 5 and abs(y_goal_cell - y_cell) < 5:
+            path_done = True
         path_cells = []
         expanded_cells = []
         frontier_cells = []
@@ -95,7 +97,6 @@ def goal_handler(msg):
             new_path_msg.poses.append(path.poses[1])
         else:
             new_path_msg.poses.append(path.poses[0])
-            path_done = True
         pub_path.publish(new_path_msg)
         publish_cells()
         while is_moving:
