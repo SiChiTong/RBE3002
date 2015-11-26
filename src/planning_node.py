@@ -3,10 +3,10 @@ import math
 import rospy
 import tf
 from GridCell import GridCell
-from geometry_msgs.msg import Point, PoseStamped
+from geometry_msgs.msg import Point, PoseStamped, _Quaternion, Quaternion
 from nav_msgs.msg import Odometry, OccupancyGrid, GridCells, Path
 from std_msgs.msg import Bool
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 DEBUG = 0
 CELL_WIDTH = 0.3
@@ -131,7 +131,7 @@ def map_handler(msg):
     for y in range(0, map_height):
         for x in range(0, map_width):
             index = y * map_width + x
-            if occupancyGrid[index] > 50:
+            if occupancyGrid[index] > 30:
                 publish_cell(x, y, 'wall')
     publish_walls()
 
@@ -357,22 +357,19 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
     path = []
 
     # make the start position the selected cell
-    selectedCell = costMap[x_cell][y_cell]
+    selected_cell = costMap[x_cell][y_cell]
 
     for y in range(0, map_height):  # Rows
         for x in range(0, map_width):  # Columns
             costMap[x][y].setH(x_goal_cell, y_goal_cell)  # adds an H value to every gridCell
 
-    while selectedCell != costMap[x_goal_cell][y_goal_cell]:
-        closed_list.append(selectedCell)
-        neighbors = unexplored_neighbors(selectedCell, open_list, closed_list, costMap)
+    while selected_cell != costMap[x_goal_cell][y_goal_cell]:
+        closed_list.append(selected_cell)
+        neighbors = unexplored_neighbors(selected_cell, open_list, closed_list, costMap)
         open_list.extend(neighbors)
-        candidate = open_list[0]
-        for cell in open_list:
-            if cell.getFval() < candidate.getFval():
-                candidate = cell
-        selectedCell = candidate
-        open_list.remove(selectedCell)
+        open_list.sort(key=lambda candidate: candidate.getFval())
+        selected_cell = open_list[0]
+        open_list.remove(selected_cell)
         frontier_cells = []
         expanded_cells = []
         for cell in open_list:
@@ -383,7 +380,7 @@ def astar(x_cell, y_cell, x_goal_cell, y_goal_cell):
         publish_expanded()
         publish_frontier()
 
-    path_cell = selectedCell
+    path_cell = selected_cell
     while path_cell != costMap[x_cell][y_cell]:
         path.append(path_cell)
         path_cell = path_cell.getParent()
@@ -541,7 +538,8 @@ def get_local_waypoints(path):
     for i in range(0, len(waypoints)):
         pose = PoseStamped()
         pose.pose.position.x, pose.pose.position.y = map_to_world(waypoints[i].getXpos(), waypoints[i].getYpos())
-        pose.pose.orientation.z = direction[i]
+        (w, x, y, z) = quaternion_from_euler(0, 0, direction[i])
+        pose.pose.orientation = Quaternion(w, x, y, z)
         posePath.append(pose)
     return posePath
 

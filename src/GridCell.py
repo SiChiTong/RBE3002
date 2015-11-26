@@ -6,7 +6,7 @@ class GridCell:
         self.Ypos = y
         self.occupancyLevel = occupancyLevel
 
-        if 50 >= occupancyLevel:
+        if 30 >= occupancyLevel:
             self.empty = True
         else:
             self.empty = False
