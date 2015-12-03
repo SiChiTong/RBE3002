@@ -6,6 +6,7 @@ from geometry_msgs.msg import Point
 from nav_msgs.msg import GridCells, Odometry
 from GridCell import GridCell
 from tf.transformations import euler_from_quaternion
+import Queue
 
 CELL_WIDTH = 0.3
 CELL_HEIGHT = 0.3
@@ -13,6 +14,61 @@ expanded_cells = []
 wall_cells = []
 path_cells = []
 frontier_cells = []
+
+def detectFrontiers():
+
+    cells = Queue()
+
+    while cells.empty() is not True:
+        cell = cells.get()
+
+
+def generateNeighbors(cell):
+    neighbors = []
+
+    x_pos = cell.getXPos()
+    y_pos = cell.getYPos()
+
+    # Iterate through the 8 adjacent cells
+    for row in range(y_pos - 1, y_pos + 1):
+        for col in range(x_pos - 1, x_pos + 1):
+            # Filter out bad cells
+            if row < 0 or col < 0 or (row == y_pos and col == x_pos):
+                continue
+            else:
+                neighbors.append(costMap[row][col])
+
+    return neighbors
+
+
+def isKnown(cell):
+    return not cell.isUnknown()
+
+
+def hasUnknownNeighbor(neighbors):
+    for cell in neighbors:
+        if cell.isUnknown():
+            return True
+
+    return False
+
+
+def hasKnownNeightbor(neighbors):
+    for cell in neighbors:
+        if not cell.isUnknown():
+            return True
+
+    return False
+
+
+def isFrontierCell(cell):
+
+    if isKnown(cell) == True:
+        return False
+
+    neighbors = generateNeighbors(cell)
+
+    return hasKnownNeightbor(neighbors) and hasUnknownNeighbor(neighbors)
 
 
 def odom_handler(msg):

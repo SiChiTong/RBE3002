@@ -7,7 +7,6 @@ from nav_msgs.msg import Path, Odometry
 from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 
-
 def nav_to_pose(goal):
     """
     Drive to a goal subscribed to from /move_base_simple/goal

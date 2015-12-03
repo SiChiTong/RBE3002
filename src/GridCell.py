@@ -6,8 +6,11 @@ class GridCell:
         self.Ypos = y
         self.occupancyLevel = occupancyLevel
 
+        self.unknown = False
         if 30 >= occupancyLevel:
             self.empty = True
+        elif occupancyLevel == -1:
+            self.unknown = True
         else:
             self.empty = False
 
@@ -93,6 +96,9 @@ class GridCell:
         :return: An int from 0 to 100.
         """
         return self.occupancyLevel
+
+    def isUnknown(self):
+        return self.unknown
 
     def setOccupancyLevel(self, occupancyval):
         """
