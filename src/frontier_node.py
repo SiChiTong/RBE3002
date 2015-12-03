@@ -15,12 +15,46 @@ wall_cells = []
 path_cells = []
 frontier_cells = []
 
+
+def followFrontier(cell, currentFrontier):
+    return []
+
+
 def detectFrontiers():
 
-    cells = Queue()
+    unexpanded = []
+    expanded = []
+    frontiers = []
 
-    while cells.empty() is not True:
-        cell = cells.get()
+    while unexpanded.empty() is not True:
+        cell = unexpanded.pop(0)
+
+        # If the cell has already been expanded, continue
+        if cell in expanded:
+            continue
+
+        if isFrontierCell(cell):
+            frontier = followFrontier(cell)
+            frontiers.append(frontier)
+            expanded.extend(frontier)
+        else:
+            expanded.append(cell)
+
+            # Get the neighboring cells
+            neighbors = generateNeighbors(cell)
+
+            # Filter out the walls
+            valid = []
+            for neighbor in neighbors:
+                if neighbor.isEmpty():
+                    valid.append(neighbor)
+
+            # Ensure that the neighboring cells will be expanded
+            unexpanded.extend(valid)
+
+
+def isValidCell(cell):
+    return cell.isEmpty()
 
 
 def generateNeighbors(cell):

@@ -7,8 +7,6 @@ from nav_msgs.msg import Odometry
 from frontier_node import map_to_grid
 from tf.transformations import euler_from_quaternion
 
-<<<<<<< HEAD
-=======
 
 def odom_handler(msg):
     """
@@ -32,7 +30,6 @@ def odom_handler(msg):
         pass
 
 
->>>>>>> cb2d07cac7f35af9956fe7ab6df5aab01733f0bc
 def nav_to_pose(goal):
     """
     Drive to a goal subscribed to from /move_base_simple/goal
