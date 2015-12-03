@@ -3,9 +3,31 @@ import actionlib
 import rospy
 import tf
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from nav_msgs.msg import Path, Odometry
-from std_msgs.msg import Bool
+from nav_msgs.msg import Odometry
+from frontier_node import map_to_grid
 from tf.transformations import euler_from_quaternion
+
+
+def odom_handler(msg):
+    """
+    Odometry callback function.
+    :param msg: The odom message.
+    """
+    global x, y, theta, x_cell, y_cell, pose
+    pose = msg.pose
+
+    try:
+        (trans, rot) = odom_list.lookupTransform('map', 'base_footprint', rospy.Time(0))
+
+        # Update the x, y, and theta globals every time something changes
+        roll, pitch, yaw = euler_from_quaternion(rot)
+
+        x = trans[0]
+        y = trans[1]
+        theta = yaw
+        x_cell, y_cell = map_to_grid(x, y)
+    except:
+        pass
 
 
 def nav_to_pose(goal):
@@ -43,4 +65,3 @@ if __name__ == '__main__':
 
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
-
