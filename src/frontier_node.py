@@ -6,7 +6,6 @@ from geometry_msgs.msg import Point
 from nav_msgs.msg import GridCells, Odometry
 from GridCell import GridCell
 from tf.transformations import euler_from_quaternion
-import Queue
 
 CELL_WIDTH = 0.3
 CELL_HEIGHT = 0.3
@@ -16,32 +15,32 @@ path_cells = []
 frontier_cells = []
 
 
-def followFrontier(cell, currentFrontier):
+def follow_frontier(cell, current_frontier):
     return []
 
 
-def detectFrontiers():
+def detect_frontiers():
 
     unexpanded = []
     expanded = []
     frontiers = []
 
-    while unexpanded.empty() is not True:
+    while len(unexpanded) != 0:
         cell = unexpanded.pop(0)
 
         # If the cell has already been expanded, continue
         if cell in expanded:
             continue
 
-        if isFrontierCell(cell):
-            frontier = followFrontier(cell)
+        if is_frontier_cell(cell):
+            frontier = follow_frontier(cell)
             frontiers.append(frontier)
             expanded.extend(frontier)
         else:
             expanded.append(cell)
 
             # Get the neighboring cells
-            neighbors = generateNeighbors(cell)
+            neighbors = get_neighboring_cells(cell)
 
             # Filter out the walls
             valid = []
@@ -53,11 +52,11 @@ def detectFrontiers():
             unexpanded.extend(valid)
 
 
-def isValidCell(cell):
+def is_valid_cell(cell):
     return cell.isEmpty()
 
 
-def generateNeighbors(cell):
+def get_neighboring_cells(cell):
     neighbors = []
 
     x_pos = cell.getXPos()
@@ -75,11 +74,11 @@ def generateNeighbors(cell):
     return neighbors
 
 
-def isKnown(cell):
+def is_known(cell):
     return not cell.isUnknown()
 
 
-def hasUnknownNeighbor(neighbors):
+def has_unknown_neighbor(neighbors):
     for cell in neighbors:
         if cell.isUnknown():
             return True
@@ -87,7 +86,7 @@ def hasUnknownNeighbor(neighbors):
     return False
 
 
-def hasKnownNeightbor(neighbors):
+def has_known_neighbor(neighbors):
     for cell in neighbors:
         if not cell.isUnknown():
             return True
@@ -95,14 +94,14 @@ def hasKnownNeightbor(neighbors):
     return False
 
 
-def isFrontierCell(cell):
+def is_frontier_cell(cell):
 
-    if isKnown(cell) == True:
+    if is_known(cell):
         return False
 
-    neighbors = generateNeighbors(cell)
+    neighbors = get_neighboring_cells(cell)
 
-    return hasKnownNeightbor(neighbors) and hasUnknownNeighbor(neighbors)
+    return has_known_neighbor(neighbors) and has_unknown_neighbor(neighbors)
 
 
 def odom_handler(msg):
@@ -150,23 +149,23 @@ def map_handler(msg):
     map_origin_y = msg.info.origin.position.y
     print "Map origin: ", map_origin_x, map_origin_y
 
-    for y in range(0, map_height):
-        for x in range(0, map_width):
-            index = y * map_width + x
+    for y_tmp in range(0, map_height):
+        for x_tmp in range(0, map_width):
+            index = y_tmp * map_width + x_tmp
             if occupancyGrid[index] > 30:
-                publish_cell(x, y, 'wall')
+                publish_cell(x_tmp, y_tmp, 'wall')
     publish_walls()
 
     # Create the costMap
-    costMap = [[0 for x in range(map_height)] for x in range(map_width)]
+    costMap = [[0 for j in range(map_height)] for j in range(map_width)]
 
     count = 0
     # iterating through every position in the matrix
     # OccupancyGrid is in row-major order
     # Items in rows are displayed in contiguous memory
-    for y in range(0, map_height):  # Rows
-        for x in range(0, map_width):  # Columns
-            costMap[x][y] = GridCell(x, y, occupancyGrid[count])  # creates all the gridCells
+    for y_tmp in range(0, map_height):  # Rows
+        for x_tmp in range(0, map_width):  # Columns
+            costMap[x_tmp][y_tmp] = GridCell(x_tmp, y_tmp, occupancyGrid[count])  # creates all the gridCells
             count += 1
 
 
@@ -197,9 +196,9 @@ def local_map_handler(msg):
         # Items in rows are displayed in contiguous memory
         count = 0
         x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
-        for y in range(y_cell_start, y_cell_start + local_map_height):  # Rows
-            for x in range(x_cell_start, x_cell_start + local_map_width):  # Columns
-                costMap[x][y].setOccupancyLevel(local_occupancy_grid[count]) # update gridCells based on local map
+        for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
+            for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
+                costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
                 count += 1
     except:
         print "Map not ready yet."
@@ -229,17 +228,17 @@ def map_to_world(grid_x, grid_y):
     return global_x, global_y
 
 
-def publish_cell(x, y, state):
+def publish_cell(x_position, y_position, state):
     """
     Creates and adds a cell-location to its corresponding list to be published in the near future
-    :param x: The X position (in terms of cell number) of the cell to color.
-    :param y: The Y position (in terms of cell number) of the cell to color.
+    :param x_position: The X position (in terms of cell number) of the cell to color.
+    :param y_position: The Y position (in terms of cell number) of the cell to color.
     :param state: The cell "state" to fill in, either expanded, wall, path, or frontier
     """
     global expanded_cells, frontier_cells, wall_cells, path_cells
 
     p = Point()
-    p.x, p.y = map_to_world(x, y)
+    p.x, p.y = map_to_world(x_position, y_position)
     # p.x -= CELL_WIDTH / 2
     # p.y -= CELL_HEIGHT / 2
     p.z = 0
@@ -331,7 +330,7 @@ def publish_frontier():
 
 
 if __name__ == '__main__':
-    global move_base, odom_list
+    global odom_list
     rospy.init_node('rbe_3002_frontier_node')
 
     # Subscribe to Odometry changes
