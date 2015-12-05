@@ -338,3 +338,5 @@ if __name__ == '__main__':
 
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
+
+    rospy.spin()

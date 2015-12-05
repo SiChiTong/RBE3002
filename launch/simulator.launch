@@ -68,7 +68,7 @@
   </include>
 
   <!--  ****** Visualization and planning *****  -->
-  <node name="rbe3002_planning_node" pkg="rbe3002" type="planning_node.py" output="screen" />
-  <node name="rbe3002_move_node" pkg="rbe3002" type="move_node.py" output="screen" />
+  <node name="rbe_3002_frontier_node" pkg="rbe3002" type="frontier_node.py" output="screen" />
+  <node name="rbe_3002_explorer_node" pkg="rbe3002" type="explorer_node.py" output="screen" />
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rbe3002)/rviz/path_planning.rviz" />
 </launch>
