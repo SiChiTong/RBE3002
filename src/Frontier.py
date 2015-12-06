@@ -1,33 +1,31 @@
 class Frontier:
     size = 0
-    centroid
+    centroid = 0
     gridCells = []
 
-    def __init__(self, cellList, cellMatrix):
-    	self.gridCells = cellList
-    	size = len(cellList)
-    	centroid = self.getCentroid(cellMatrix)
+    def __init__(self, cell_list, cell_matrix):
+        self.gridCells = cell_list
+        self.size = len(cell_list)
+        self.centroid = self.get_centroid(cell_matrix)
 
-    def getCentroid(self, cellMatrix):
-    	Xsum = 0
-    	Ysum = 0
-    	for cell in gridCells:
-    		Xsum += cell.getXpos()
-    		Ysum += cell.getYpos()
-    	newX = Xsum // self.size
-    	newY = Ysum // self.size
-    	explored = []
-    	unexplored = []
-    	unexplored.append(cellMatrix[newX][newY])
-    	while(1):
-	    	for cell in unexplored and not in explored:
-				explored.append(cell)
-				if cell.isEmpty() and not cell.isUnknown():
-					return cell
-				else:
-					unexplored.append(cellMatrix[newX + 1][newY])
-					unexplored.append(cellMatrix[newX - 1][newY])
-					unexplored.append(cellMatrix[newX][newY + 1])
-					unexplored.append(cellMatrix[newX][newY - 1])
-
-
+    def get_centroid(self, cell_matrix):
+        xsum = 0
+        ysum = 0
+        for cell in self.gridCells:
+            xsum += cell.getXpos()
+            ysum += cell.getYpos()
+        newx = xsum // self.size
+        newy = ysum // self.size
+        explored = []
+        unexplored = [cell_matrix[newx][newy]]
+        while True:
+            for cell in unexplored:
+                if cell not in explored:
+                    explored.append(cell)
+                    if cell.isEmpty() and not cell.isUnknown():
+                        return cell
+                    else:
+                        unexplored.append(cell_matrix[newx + 1][newy])
+                        unexplored.append(cell_matrix[newx - 1][newy])
+                        unexplored.append(cell_matrix[newx][newy + 1])
+                        unexplored.append(cell_matrix[newx][newy - 1])

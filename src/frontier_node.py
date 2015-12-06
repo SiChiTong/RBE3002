@@ -3,7 +3,7 @@ import math
 import rospy
 import tf
 from geometry_msgs.msg import Point
-from nav_msgs.msg import GridCells, Odometry
+from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
 from tf.transformations import euler_from_quaternion
 
@@ -175,6 +175,8 @@ def map_handler(msg):
             costMap[x_tmp][y_tmp] = GridCell(x_tmp, y_tmp, occupancyGrid[count])  # creates all the gridCells
             count += 1
 
+    print detect_frontiers()
+
 
 def local_map_handler(msg):
     """
@@ -342,6 +344,12 @@ if __name__ == '__main__':
 
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
+
+    # Subscribe to the global map
+    rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
+
+    # Subscribe to the local map
+    rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
 
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
