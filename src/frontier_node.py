@@ -15,8 +15,15 @@ path_cells = []
 frontier_cells = []
 
 
-def follow_frontier(cell, current_frontier):
-    return []
+def follow_frontier(cell, frontier):
+    if is_frontier_cell(cell) and cell not in frontier:
+        frontier.append(cell)
+        neighbors = get_neighboring_cells(cell)
+        for neighbor in neighbors:
+            frontier = follow_frontier(neighbor, frontier)
+        return frontier
+    else:
+        return frontier
 
 
 def detect_frontiers():
@@ -33,7 +40,7 @@ def detect_frontiers():
             continue
 
         if is_frontier_cell(cell):
-            frontier = follow_frontier(cell)
+            frontier = follow_frontier(cell, [])
             frontiers.append(frontier)
             expanded.extend(frontier)
         else:
