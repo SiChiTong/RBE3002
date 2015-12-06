@@ -6,11 +6,8 @@ class GridCell:
         self.Ypos = y
         self.occupancyLevel = occupancyLevel
 
-        self.unknown = False
         if 30 >= occupancyLevel:
             self.empty = True
-        elif occupancyLevel == -1:
-            self.unknown = True
         else:
             self.empty = False
 
@@ -98,7 +95,7 @@ class GridCell:
         return self.occupancyLevel
 
     def isUnknown(self):
-        return self.unknown
+        return self.occupancyLevel < 0
 
     def setOccupancyLevel(self, occupancyval):
         """
@@ -112,7 +109,7 @@ class GridCell:
             self.empty = False
 
     def __str__(self):
-        return str(self.getXpos()) + ' ' + str(self.getYpos()) + ' ' + str(self.isEmpty())
+        return str(self.getXpos()) + ' ' + str(self.getYpos()) + ' ' + str(self.isEmpty()) + ' ' + str(self.isUnknown())
 
     def __repr__(self):
         return self.__str__()

@@ -27,13 +27,24 @@ def follow_frontier(cell, frontier):
 
 
 def detect_frontiers():
-
+    print "Starting"
+    raw_input()
     unexpanded = []
     expanded = []
     frontiers = []
 
+    # print costMap[0][0], costMap[0][0].isUnknown(), costMap[0][0].getOccupancyLevel()
+    # print costMap[200][200], costMap[200][200].isUnknown(), costMap[200][200].getOccupancyLevel()
+
+    # Kick off the search by adding the first cells to the unexpanded list
+    unexpanded.extend(get_neighboring_cells(costMap[x_cell][y_cell]))
+    # print unexpanded
+
     while len(unexpanded) != 0:
         cell = unexpanded.pop(0)
+
+        # print unexpanded
+        # raw_input()
 
         # If the cell has already been expanded, continue
         if cell in expanded:
@@ -41,6 +52,7 @@ def detect_frontiers():
 
         if is_frontier_cell(cell):
             frontier = follow_frontier(cell, [])
+            print "Found frontier"
             frontiers.append(frontier)
             expanded.extend(frontier)
         else:
@@ -58,6 +70,18 @@ def detect_frontiers():
             # Ensure that the neighboring cells will be expanded
             unexpanded.extend(valid)
 
+    print len(expanded)
+    tmp = expanded
+    print "-------------------------------------------------------------------------------------------------------"
+    print frontier_cells
+    for item in tmp:
+        publish_cell(item.getXpos(),item.getYpos(),"frontier")
+    print "-------------------------------------------------------------------------------------------------------"
+    print frontier_cells
+    publish_cells()
+    print "Done."
+    raw_input()
+    return frontiers
 
 def is_valid_cell(cell):
     return cell.isEmpty()
@@ -66,12 +90,12 @@ def is_valid_cell(cell):
 def get_neighboring_cells(cell):
     neighbors = []
 
-    x_pos = cell.getXPos()
-    y_pos = cell.getYPos()
+    x_pos = cell.getXpos()
+    y_pos = cell.getYpos()
 
     # Iterate through the 8 adjacent cells
-    for row in range(y_pos - 1, y_pos + 1):
-        for col in range(x_pos - 1, x_pos + 1):
+    for row in range(y_pos - 1, y_pos + 2):
+        for col in range(x_pos - 1, x_pos + 2):
             # Filter out bad cells
             if row < 0 or col < 0 or (row == y_pos and col == x_pos):
                 continue
@@ -108,7 +132,7 @@ def is_frontier_cell(cell):
 
     neighbors = get_neighboring_cells(cell)
 
-    return has_known_neighbor(neighbors) and has_unknown_neighbor(neighbors)
+    return has_known_neighbor(neighbors)
 
 
 def odom_handler(msg):
@@ -327,6 +351,7 @@ def publish_frontier():
     Publishes the information stored in unexplored_cells to the map
     """
     pub_unexplored = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+    print "publishing..."
 
     # Information all GridCells messages will use
     msg = GridCells()
