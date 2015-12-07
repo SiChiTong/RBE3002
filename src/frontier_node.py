@@ -14,77 +14,21 @@ wall_cells = []
 path_cells = []
 frontier_cells = []
 
-
-def follow_frontier(cell, frontier):
-    if is_frontier_cell(cell) and cell not in frontier:
-        frontier.append(cell)
-        neighbors = get_neighboring_cells(cell)
-        for neighbor in neighbors:
-            frontier = follow_frontier(neighbor, frontier)
-        return frontier
-    else:
-        return frontier
-
-
 def detect_frontiers():
-    print "Starting"
-    raw_input()
-    unexpanded = []
-    expanded = []
-    frontiers = []
 
-    # print costMap[0][0], costMap[0][0].isUnknown(), costMap[0][0].getOccupancyLevel()
-    # print costMap[200][200], costMap[200][200].isUnknown(), costMap[200][200].getOccupancyLevel()
+    frontier = []
 
-    # Kick off the search by adding the first cells to the unexpanded list
-    unexpanded.extend(get_neighboring_cells(costMap[x_cell][y_cell]))
-    # print unexpanded
+    for row in costMap:
+        for cell in row:
+            if is_frontier_cell(cell):
+                frontier.append(cell)
 
-    while len(unexpanded) != 0:
-        cell = unexpanded.pop(0)
-
-        # print unexpanded
-        # raw_input()
-
-        # If the cell has already been expanded, continue
-        if cell in expanded:
-            continue
-
-        if is_frontier_cell(cell):
-            frontier = follow_frontier(cell, [])
-            print "Found frontier"
-            frontiers.append(frontier)
-            expanded.extend(frontier)
-        else:
-            expanded.append(cell)
-
-            # Get the neighboring cells
-            neighbors = get_neighboring_cells(cell)
-
-            # Filter out the walls
-            valid = []
-            for neighbor in neighbors:
-                if neighbor.isEmpty():
-                    valid.append(neighbor)
-
-            # Ensure that the neighboring cells will be expanded
-            unexpanded.extend(valid)
-
-    print len(expanded)
-    tmp = expanded
-    print "-------------------------------------------------------------------------------------------------------"
-    print frontier_cells
-    for item in tmp:
-        publish_cell(item.getXpos(),item.getYpos(),"frontier")
-    print "-------------------------------------------------------------------------------------------------------"
-    print frontier_cells
-    publish_cells()
-    print "Done."
-    raw_input()
-    return frontiers
-
-def is_valid_cell(cell):
-    return cell.isEmpty()
+    for cell in frontier:
+        publish_cell(cell.getXpos(), cell.getYpos(), "frontier")
+    while True:
+        publish_cells()
+        raw_input("Publish")
+    return frontier
 
 
 def get_neighboring_cells(cell):
@@ -100,21 +44,12 @@ def get_neighboring_cells(cell):
             if row < 0 or col < 0 or (row == y_pos and col == x_pos):
                 continue
             else:
-                neighbors.append(costMap[row][col])
+                try:
+                    neighbors.append(costMap[col][row])
+                except: # Index out of bounds exception
+                    pass
 
     return neighbors
-
-
-def is_known(cell):
-    return not cell.isUnknown()
-
-
-def has_unknown_neighbor(neighbors):
-    for cell in neighbors:
-        if cell.isUnknown():
-            return True
-
-    return False
 
 
 def has_known_neighbor(neighbors):
@@ -126,13 +61,7 @@ def has_known_neighbor(neighbors):
 
 
 def is_frontier_cell(cell):
-
-    if is_known(cell):
-        return False
-
-    neighbors = get_neighboring_cells(cell)
-
-    return has_known_neighbor(neighbors)
+    return cell.isUnknown() and has_known_neighbor(filter(lambda c: c.isEmpty(),get_neighboring_cells(cell)))
 
 
 def odom_handler(msg):
