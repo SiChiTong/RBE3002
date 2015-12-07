@@ -55,16 +55,12 @@
   <include file="$(find turtlebot_navigation)/launch/includes/move_base.launch.xml"/>
 
   <!--  ****** Maps *****  -->
-  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)">
+  <!-- <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)">
     <param name="frame_id" value="/map"/>
-  </node>
+  </node> -->
 
-  <include file="$(find turtlebot_navigation)/launch/includes/amcl.launch.xml">
+  <include file="$(find rbe3002)/launch/gmapping.launch.xml">
     <arg name="scan_topic" value="scan"/>
-    <arg name="use_map_topic" value="true"/>
-    <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
-    <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
-    <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
   </include>
 
   <!--  ****** Visualization and planning *****  -->

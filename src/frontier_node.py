@@ -24,12 +24,13 @@ def detect_frontiers():
             if is_frontier_cell(cell):
                 frontier.append(cell)
 
+    frontier_cells = []
     for cell in frontier:
         publish_cell(cell.getXpos(), cell.getYpos(), "frontier")
-    while True:
-        publish_cells()
-        raw_input("Publish")
-        group_frontiers(frontier)
+    # while True:
+    publish_cells()
+    # raw_input("Publish")
+    group_frontiers(frontier)
     return frontier
 
 
@@ -142,6 +143,7 @@ def map_handler(msg):
     map_origin_y = msg.info.origin.position.y
     print "Map origin: ", map_origin_x, map_origin_y
 
+    wall_cells = []
     for y_tmp in range(0, map_height):
         for x_tmp in range(0, map_width):
             index = y_tmp * map_width + x_tmp
@@ -193,10 +195,12 @@ def local_map_handler(msg):
         x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
         for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
             for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
-                costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
+                if local_occupancy_grid[count] != 0:
+                    costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
                 count += 1
     except:
         print "Map not ready yet."
+    print detect_frontiers()
 
 
 def map_to_grid(global_x, global_y):
@@ -264,7 +268,7 @@ def publish_expanded():
     """
     Publishes the information stored in expanded_cells to the map
     """
-    pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
+    global pub_expanded
 
     # Information all GridCells messages will use
     msg = GridCells()
@@ -280,7 +284,7 @@ def publish_walls():
     """
     Publishes the information stored in frontier_cells to the map
     """
-    pub_frontier = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
+    global pub_walls
 
     # Information all GridCells messages will use
     msg = GridCells()
@@ -289,14 +293,14 @@ def publish_walls():
     msg.cell_height = CELL_HEIGHT
 
     msg.cells = wall_cells
-    pub_frontier.publish(msg)
+    pub_walls.publish(msg)
 
 
 def publish_path():
     """
     Publishes the information stored in unexplored_cells to the map
     """
-    pub_unexplored = rospy.Publisher('/path_cells', GridCells, queue_size=1)
+    global pub_path
 
     # Information all GridCells messages will use
     msg = GridCells()
@@ -305,14 +309,14 @@ def publish_path():
     msg.cell_height = CELL_HEIGHT
 
     msg.cells = path_cells
-    pub_unexplored.publish(msg)
+    pub_path.publish(msg)
 
 
 def publish_frontier():
     """
     Publishes the information stored in unexplored_cells to the map
     """
-    pub_unexplored = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+    global pub_frontier
     print "publishing..."
 
     # Information all GridCells messages will use
@@ -322,11 +326,11 @@ def publish_frontier():
     msg.cell_height = CELL_HEIGHT
 
     msg.cells = frontier_cells
-    pub_unexplored.publish(msg)
+    pub_frontier.publish(msg)
 
 
 if __name__ == '__main__':
-    global odom_list
+    global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier
     rospy.init_node('rbe_3002_frontier_node')
 
     # Subscribe to Odometry changes
@@ -340,5 +344,11 @@ if __name__ == '__main__':
 
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
+
+    pub_walls = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
+    pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
+    pub_path = rospy.Publisher('/path_cells', GridCells, queue_size=1)
+    pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+
 
     rospy.spin()
