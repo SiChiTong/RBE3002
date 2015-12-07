@@ -25,7 +25,19 @@ class Frontier:
                     if cell.isEmpty() and not cell.isUnknown():
                         return cell
                     else:
-                        unexplored.append(cell_matrix[newx + 1][newy])
-                        unexplored.append(cell_matrix[newx - 1][newy])
-                        unexplored.append(cell_matrix[newx][newy + 1])
-                        unexplored.append(cell_matrix[newx][newy - 1])
+                        try:
+                            unexplored.append(cell_matrix[newx + 1][newy])
+                        except ValueError:
+                        	pass
+                        try:
+                            unexplored.append(cell_matrix[newx - 1][newy])
+                        except ValueError:
+                        	pass
+                        try:
+                            unexplored.append(cell_matrix[newx][newy + 1])
+                        except ValueError:
+                        	pass
+                        try:
+                            unexplored.append(cell_matrix[newx][newy - 1])
+                        except ValueError:
+                        	pass
