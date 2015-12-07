@@ -6,6 +6,7 @@ import time
 from geometry_msgs.msg import Point
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
+from nav_msgs.srv import GetMap
 from tf.transformations import euler_from_quaternion
 
 CELL_WIDTH = 0.3
@@ -120,19 +121,34 @@ def odom_handler(msg):
         pass
 
 
+def request_map(event):
+    """
+    Request a map from the costmap service.
+    """
+    get_map_srv = rospy.ServiceProxy('/dynamic_map', GetMap)
+    map_handler(get_map_srv().map)
+
+
 def map_handler(msg):
     """
     Handles when a new global map message arrives.
     :param msg: The map message to process.
     """
+    print "******************************Got global map******************************"
     global CELL_WIDTH, CELL_HEIGHT
     global map_width, map_height, occupancyGrid, x_offset, y_offset
     global map_origin_x, map_origin_y, costMap
+    global path_cells, wall_cells, frontier_cells, expanded_cells
+    global last_map
 
     map_width = msg.info.width
     map_height = msg.info.height
     occupancyGrid = msg.data
+    if occupancyGrid == last_map:
+        print "Same map, ignoring..."
+        return
     print map_width, map_height
+    last_map = occupancyGrid
 
     CELL_WIDTH = msg.info.resolution
     CELL_HEIGHT = msg.info.resolution
@@ -158,11 +174,11 @@ def map_handler(msg):
     # iterating through every position in the matrix
     # OccupancyGrid is in row-major order
     # Items in rows are displayed in contiguous memory
+    path_cells, wall_cells, frontier_cells, expanded_cells = [], [], [], []
     for y_tmp in range(0, map_height):  # Rows
         for x_tmp in range(0, map_width):  # Columns
             costMap[x_tmp][y_tmp] = GridCell(x_tmp, y_tmp, occupancyGrid[count])  # creates all the gridCells
             count += 1
-
     print detect_frontiers()
 
 
@@ -330,14 +346,18 @@ def publish_frontier():
 
 
 if __name__ == '__main__':
-    global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier
+    global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map
     rospy.init_node('rbe_3002_frontier_node')
 
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
 
     # Subscribe to the global map
-    rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
+    # rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
+    # Request the global costmap every 5 seconds
+    last_map = []
+    rospy.Timer(rospy.Duration(5), request_map)
+
 
     # Subscribe to the local map
     rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
@@ -349,6 +369,5 @@ if __name__ == '__main__':
     pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
     pub_path = rospy.Publisher('/path_cells', GridCells, queue_size=1)
     pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
-
 
     rospy.spin()
