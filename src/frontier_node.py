@@ -216,7 +216,6 @@ def local_map_handler(msg):
                 count += 1
     except:
         print "Map not ready yet."
-    print detect_frontiers()
 
 
 def map_to_grid(global_x, global_y):
@@ -357,7 +356,6 @@ if __name__ == '__main__':
     # Request the global costmap every 5 seconds
     last_map = []
     rospy.Timer(rospy.Duration(5), request_map)
-
 
     # Subscribe to the local map
     rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)

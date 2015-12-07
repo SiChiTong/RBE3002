@@ -2,6 +2,7 @@
 import actionlib
 import rospy
 import tf
+from geometry_msgs.msg import PoseStamped
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import Odometry
 from frontier_node import map_to_grid
@@ -62,6 +63,7 @@ if __name__ == '__main__':
 
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
+    rospy.Subscriber('/navgoal', PoseStamped, nav_to_pose)
 
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
