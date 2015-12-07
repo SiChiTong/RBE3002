@@ -2,6 +2,7 @@
 import math
 import rospy
 import tf
+import time
 from geometry_msgs.msg import Point
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
@@ -14,8 +15,8 @@ wall_cells = []
 path_cells = []
 frontier_cells = []
 
-def detect_frontiers():
 
+def detect_frontiers():
     frontier = []
 
     for row in costMap:
@@ -28,6 +29,7 @@ def detect_frontiers():
     while True:
         publish_cells()
         raw_input("Publish")
+        group_frontiers(frontier)
     return frontier
 
 
@@ -63,6 +65,37 @@ def has_known_neighbor(neighbors):
 def is_frontier_cell(cell):
     return cell.isUnknown() and has_known_neighbor(filter(lambda c: c.isEmpty(),get_neighboring_cells(cell)))
 
+
+def group_frontiers(ungrouped_frontier):
+    print "Printing grouped frontiers"
+    print len(ungrouped_frontier)
+    frontiers = []
+
+    while len(ungrouped_frontier) != 0:
+        frontier = [ungrouped_frontier.pop(0)]
+        done = False
+
+        # Just ask Tucker what's going on here
+        while not done:
+            try:
+                for a in ungrouped_frontier:
+                    for b in frontier:
+                        if isAdjacent(a, b):
+                            frontier.append(a)
+                            ungrouped_frontier.remove(a)
+                            raise StopIteration                 # Using this to break out of outer for loop
+                # Finished finding the frontier. Add it to the frontiers list.
+                done = True
+                frontiers.append(frontier)
+            except:
+                pass
+
+    print len(frontiers)
+    return frontiers
+
+
+def isAdjacent(a, b):
+    return (abs(a.getXpos() - b.getXpos()) <= 1) and (abs(a.getYpos() - b.getYpos()) <= 1)
 
 def odom_handler(msg):
     """
