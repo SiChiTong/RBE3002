@@ -10,7 +10,7 @@ from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
 from nav_msgs.srv import GetMap
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 CELL_WIDTH = 0.3
 CELL_HEIGHT = 0.3
@@ -103,7 +103,9 @@ def detect_frontiers():
             maximum = weighted_centroid[i]
             index = i
 
+    # The most heavily weighted centroid
     nav_goal = centroids[index]
+
     print "Nav Goal " + str(nav_goal)
     print weighted_centroid
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos(), "expanded")
@@ -111,7 +113,22 @@ def detect_frontiers():
     publish_cell(nav_goal.getXpos() - 1, nav_goal.getYpos(), "expanded")
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos() + 1, "expanded")
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos() - 1, "expanded")
-    publish_cells()
+    raw_input("Publish nav goal")
+    for i in range(10):
+        publish_cells()
+
+    nav_goal_pose = PoseStamped()
+    nav_goal_pose.header.frame_id = 'map'
+    nav_goal_pose.header.stamp = rospy.Time().now()
+    world_x, world_y = map_to_world(nav_goal.getXpos(), nav_goal.getYpos())
+    nav_goal_pose.pose.position.x = world_x
+    nav_goal_pose.pose.position.y = world_y
+    nav_goal_pose.pose.orientation.w, nav_goal_pose.pose.orientation.x, nav_goal_pose.pose.orientation.y, nav_goal_pose.pose.orientation.z = quaternion_from_euler(0.0, 0.0, 0.0)
+
+    raw_input("Navigate to goal")
+    print "Navigating to centroid..."
+    nav_to_pose(nav_goal_pose)
+
 
 
 def distance_to_centroid(centroid_cell):
