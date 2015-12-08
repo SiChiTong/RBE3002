@@ -467,10 +467,15 @@ def move_status_handler(msg):
             goal_done = False
     if len(msg.status_list) > 0 and not goal_done:
         for goal in msg.status_list:
-            if goal.goal_id.id == last_active_goal.goal_id.id and goal.status >= 2:
-                goal_done = True
-                print "Goal completed, moving to next centroid."
-                go_to_next_centroid()
+            if goal.goal_id.id == last_active_goal.goal_id.id:
+                if 2 <= goal.status <= 3:
+                    goal_done = True
+                    print "Goal completed, moving to next centroid."
+                    go_to_next_centroid()
+                elif 4 <= goal.status <= 5:  # Goal unreachable or rejected
+                    goal_done = True
+                    print "Goal unreachable or other error."
+
 
 
 def go_to_next_centroid():
