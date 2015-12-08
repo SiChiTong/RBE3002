@@ -1,8 +1,11 @@
 #!/usr/bin/python
 import math
+
+import actionlib
 import rospy
 import tf
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PoseStamped
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
 from nav_msgs.srv import GetMap
@@ -16,9 +19,8 @@ path_cells = []
 frontier_cells = []
 
 
-def getCentroid(frontier):
-
-    x_sum,y_sum = 0.0, 0.0
+def get_centroid(frontier):
+    x_sum, y_sum = 0.0, 0.0
     total = len(frontier)
 
     for cell in frontier:
@@ -58,7 +60,7 @@ def get_closest_valid_cell(cell):
 
 def detect_frontiers():
     """
-
+    Detect frontiers in a map.
     :return: A list of frontiers, where each frontier is a list of connected frontier cells
     """
     frontier = []
@@ -77,7 +79,7 @@ def detect_frontiers():
     groups = group_frontiers(frontier)
 
     # Calculate the centroid of all of the frontiers
-    centroids = map(getCentroid, groups)
+    centroids = map(get_centroid, groups)
 
     for cell in centroids:
         publish_cell(cell.getXpos(), cell.getYpos(), "path")
@@ -104,23 +106,23 @@ def detect_frontiers():
     print "Nav Goal " + str(nav_goal)
     print weighted_centroid
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos(), "expanded")
-    publish_cell(nav_goal.getXpos()+1, nav_goal.getYpos(), "expanded")
-    publish_cell(nav_goal.getXpos()-1, nav_goal.getYpos(), "expanded")
-    publish_cell(nav_goal.getXpos(), nav_goal.getYpos()+1, "expanded")
-    publish_cell(nav_goal.getXpos(), nav_goal.getYpos()-1, "expanded")
+    publish_cell(nav_goal.getXpos() + 1, nav_goal.getYpos(), "expanded")
+    publish_cell(nav_goal.getXpos() - 1, nav_goal.getYpos(), "expanded")
+    publish_cell(nav_goal.getXpos(), nav_goal.getYpos() + 1, "expanded")
+    publish_cell(nav_goal.getXpos(), nav_goal.getYpos() - 1, "expanded")
     publish_cells()
 
 
-
 def distance_to_centroid(centroid_cell):
-    return math.sqrt((centroid_cell.getXpos() - x_cell)**2 + (centroid_cell.getYpos() - y_cell)**2)
+    cell_x, cell_y = map_to_grid(x, y)
+    return math.sqrt((centroid_cell.getXpos() - cell_x) ** 2 + (centroid_cell.getYpos() - cell_y) ** 2)
 
 
 def get_neighboring_cells(cell):
-    '''
+    """
     :param cell: The cell, whose neighbors are needed
     :return: A list of cells neightobring cell
-    '''
+    """
     neighbors = []
 
     x_pos = cell.getXpos()
@@ -135,7 +137,7 @@ def get_neighboring_cells(cell):
             else:
                 try:
                     neighbors.append(costMap[col][row])
-                except: # Index out of bounds exception
+                except:  # Index out of bounds exception
                     pass
 
     return neighbors
@@ -150,7 +152,7 @@ def has_known_neighbor(neighbors):
 
 
 def is_frontier_cell(cell):
-    return cell.isUnknown() and has_known_neighbor(filter(lambda c: c.isEmpty(),get_neighboring_cells(cell)))
+    return cell.isUnknown() and has_known_neighbor(filter(lambda c: c.isEmpty(), get_neighboring_cells(cell)))
 
 
 def group_frontiers(ungrouped_frontier):
@@ -165,21 +167,22 @@ def group_frontiers(ungrouped_frontier):
             try:
                 for a in ungrouped_frontier:
                     for b in frontier:
-                        if isAdjacent(a, b):
+                        if is_adjacent(a, b):
                             frontier.append(a)
                             ungrouped_frontier.remove(a)
-                            raise StopIteration                 # Using this to break out of outer for loop
+                            raise StopIteration  # Using this to break out of outer for loop
                 # Finished finding the frontier. Add it to the frontiers list.
                 done = True
                 frontiers.append(frontier)
-            except: # Using this as a break loop statement
+            except:  # Using this as a break loop statement
                 pass
 
     return frontiers
 
 
-def isAdjacent(a, b):
+def is_adjacent(a, b):
     return (abs(a.getXpos() - b.getXpos()) <= 1) and (abs(a.getYpos() - b.getYpos()) <= 1)
+
 
 def odom_handler(msg):
     """
@@ -425,6 +428,22 @@ def publish_frontier():
     pub_frontier.publish(msg)
 
 
+def nav_to_pose(goal):
+    """
+    Drive to a goal subscribed to from /move_base_simple/goal
+    :param goal: Goal pose.
+    :return: Whether or not the movement was successful.
+    """
+    global move_base
+    goal_pose = MoveBaseGoal()
+    goal_pose.target_pose.header.frame_id = 'map'
+    goal_pose.target_pose.header.stamp = rospy.Time.now()
+    goal_pose.target_pose.pose = goal.pose
+    move_base.send_goal(goal_pose)
+    success = move_base.wait_for_result(rospy.Duration(60))
+    return success
+
+
 if __name__ == '__main__':
     global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map
     rospy.init_node('rbe_3002_frontier_node')
@@ -441,6 +460,9 @@ if __name__ == '__main__':
     # Subscribe to the local map
     rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
 
+    # Subscribe to the navgoal.
+    rospy.Subscriber('/navgoal', PoseStamped, nav_to_pose)
+
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
 
@@ -448,5 +470,8 @@ if __name__ == '__main__':
     pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
     pub_path = rospy.Publisher('/path_cells', GridCells, queue_size=1)
     pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+
+    move_base = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    move_base.wait_for_server(rospy.Duration(5))
 
     rospy.spin()
