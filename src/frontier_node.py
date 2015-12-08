@@ -64,6 +64,7 @@ def detect_frontiers():
     Detect frontiers in a map.
     :return: A list of frontiers, where each frontier is a list of connected frontier cells
     """
+    global nav_goal
     frontier = []
 
     # Iterate through all of the cells in the global map and collect all the possible frontier cells
@@ -108,27 +109,14 @@ def detect_frontiers():
 
     print "Nav Goal " + str(nav_goal)
     print weighted_centroid
+
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos(), "expanded")
     publish_cell(nav_goal.getXpos() + 1, nav_goal.getYpos(), "expanded")
     publish_cell(nav_goal.getXpos() - 1, nav_goal.getYpos(), "expanded")
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos() + 1, "expanded")
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos() - 1, "expanded")
-    raw_input("Publish nav goal")
     for i in range(10):
         publish_cells()
-
-    nav_goal_pose = PoseStamped()
-    nav_goal_pose.header.frame_id = 'map'
-    nav_goal_pose.header.stamp = rospy.Time().now()
-    world_x, world_y = map_to_world(nav_goal.getXpos(), nav_goal.getYpos())
-    nav_goal_pose.pose.position.x = world_x
-    nav_goal_pose.pose.position.y = world_y
-    nav_goal_pose.pose.orientation.w, nav_goal_pose.pose.orientation.x, nav_goal_pose.pose.orientation.y, nav_goal_pose.pose.orientation.z = quaternion_from_euler(0.0, 0.0, 0.0)
-
-    raw_input("Navigate to goal")
-    print "Navigating to centroid..."
-    nav_to_pose(nav_goal_pose)
-
 
 
 def distance_to_centroid(centroid_cell):
@@ -482,11 +470,27 @@ def move_status_handler(msg):
             if goal.goal_id.id == last_active_goal.goal_id.id and goal.status >= 2:
                 goal_done = True
                 print "Goal completed, moving to next centroid."
+                go_to_next_centroid()
+
+
+def go_to_next_centroid():
+    nav_goal_pose = PoseStamped()
+    nav_goal_pose.header.frame_id = 'map'
+    nav_goal_pose.header.stamp = rospy.Time().now()
+    world_x, world_y = map_to_world(nav_goal.getXpos(), nav_goal.getYpos())
+    nav_goal_pose.pose.position.x = world_x
+    nav_goal_pose.pose.position.y = world_y
+    # TODO: Turn towards frontier
+    nav_goal_pose.pose.orientation.w, nav_goal_pose.pose.orientation.x, nav_goal_pose.pose.orientation.y, nav_goal_pose.pose.orientation.z = quaternion_from_euler(0.0, 0.0, 0.0)
+    print "Navigating to centroid..."
+    nav_to_pose(nav_goal_pose)
 
 
 if __name__ == '__main__':
     global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map, move_base_cancel
+    global goal_done
     rospy.init_node('rbe_3002_frontier_node')
+    goal_done = True
 
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
