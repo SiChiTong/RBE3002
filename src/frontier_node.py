@@ -4,6 +4,7 @@ import math
 import actionlib
 import rospy
 import tf
+from actionlib_msgs.msg import GoalID, GoalStatusArray
 from geometry_msgs.msg import Point, PoseStamped
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
@@ -432,7 +433,6 @@ def nav_to_pose(goal):
     """
     Drive to a goal subscribed to from /move_base_simple/goal
     :param goal: Goal pose.
-    :return: Whether or not the movement was successful.
     """
     global move_base
     goal_pose = MoveBaseGoal()
@@ -440,12 +440,35 @@ def nav_to_pose(goal):
     goal_pose.target_pose.header.stamp = rospy.Time.now()
     goal_pose.target_pose.pose = goal.pose
     move_base.send_goal(goal_pose)
-    success = move_base.wait_for_result(rospy.Duration(60))
-    return success
+
+
+def cancel_navigation():
+    """
+    Cancel all goals on the move base.
+    """
+    cancel = GoalID()
+    move_base_cancel.publish(cancel)
+
+
+def move_status_handler(msg):
+    """
+    Handle movement status messages.
+    :param msg: The move status message array.
+    """
+    global last_active_goal, goal_done
+    for goal in msg.status_list:
+        if goal.status < 2:
+            last_active_goal = goal
+            goal_done = False
+    if len(msg.status_list) > 0 and not goal_done:
+        for goal in msg.status_list:
+            if goal.goal_id.id == last_active_goal.goal_id.id and goal.status >= 2:
+                goal_done = True
+                print "Goal completed, moving to next centroid."
 
 
 if __name__ == '__main__':
-    global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map
+    global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map, move_base_cancel
     rospy.init_node('rbe_3002_frontier_node')
 
     # Subscribe to Odometry changes
@@ -471,7 +494,11 @@ if __name__ == '__main__':
     pub_path = rospy.Publisher('/path_cells', GridCells, queue_size=1)
     pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
 
+    # Configure move base action library.
     move_base = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     move_base.wait_for_server(rospy.Duration(5))
+    move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
+    # Subscribe to move base status.
+    move_base_status = rospy.Subscriber('/move_base/status', GoalStatusArray, move_status_handler)
 
     rospy.spin()
