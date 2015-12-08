@@ -108,7 +108,6 @@ def detect_frontiers():
     nav_goal = centroids[index]
 
     print "Nav Goal " + str(nav_goal)
-    print weighted_centroid
 
     publish_cell(nav_goal.getXpos(), nav_goal.getYpos(), "expanded")
     publish_cell(nav_goal.getXpos() + 1, nav_goal.getYpos(), "expanded")
@@ -238,7 +237,7 @@ def map_handler(msg):
     if occupancyGrid == last_map:
         print "Same map, ignoring..."
         return
-    print map_width, map_height
+    print "Map (width, height): " + str(map_width) + " " + str(map_height)
     last_map = occupancyGrid
 
     CELL_WIDTH = msg.info.resolution
@@ -270,7 +269,8 @@ def map_handler(msg):
         for x_tmp in range(0, map_width):  # Columns
             costMap[x_tmp][y_tmp] = GridCell(x_tmp, y_tmp, occupancyGrid[count])  # creates all the gridCells
             count += 1
-    print detect_frontiers()
+
+    detect_frontiers()
 
 
 def local_map_handler(msg):
