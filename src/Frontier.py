@@ -28,16 +28,16 @@ class Frontier:
                         try:
                             unexplored.append(cell_matrix[newx + 1][newy])
                         except ValueError:
-                        	pass
+                            pass
                         try:
                             unexplored.append(cell_matrix[newx - 1][newy])
                         except ValueError:
-                        	pass
+                            pass
                         try:
                             unexplored.append(cell_matrix[newx][newy + 1])
                         except ValueError:
-                        	pass
+                            pass
                         try:
                             unexplored.append(cell_matrix[newx][newy - 1])
                         except ValueError:
-                        	pass
+                            pass

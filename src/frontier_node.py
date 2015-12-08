@@ -2,7 +2,6 @@
 import math
 import rospy
 import tf
-import time
 from geometry_msgs.msg import Point
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
@@ -17,25 +16,111 @@ path_cells = []
 frontier_cells = []
 
 
+def getCentroid(frontier):
+
+    x_sum,y_sum = 0.0, 0.0
+    total = len(frontier)
+
+    for cell in frontier:
+        x_sum = x_sum + cell.getXpos()
+        y_sum = y_sum + cell.getYpos()
+
+    cell_x = int(x_sum / total)
+    cell_y = int(y_sum / total)
+
+    cell = costMap[cell_x][cell_y]
+
+    if not cell.isEmpty() or cell.isUnknown():
+        cell = get_closest_valid_cell(cell)
+
+    return cell
+
+
+def get_closest_valid_cell(cell):
+    unexplored = []
+    explored = [cell]
+
+    unexplored.extend(get_neighboring_cells(cell))
+
+    while True:
+        tmp = unexplored.pop(0)
+
+        if tmp in explored:
+            continue
+
+        explored.append(tmp)
+
+        if tmp.isEmpty() and not tmp.isUnknown():
+            return tmp
+        else:
+            unexplored.extend(get_neighboring_cells(tmp))
+
+
 def detect_frontiers():
+    """
+
+    :return: A list of frontiers, where each frontier is a list of connected frontier cells
+    """
     frontier = []
 
+    # Iterate through all of the cells in the global map and collect all the possible frontier cells
     for row in costMap:
         for cell in row:
             if is_frontier_cell(cell):
                 frontier.append(cell)
 
-    frontier_cells = []
     for cell in frontier:
         publish_cell(cell.getXpos(), cell.getYpos(), "frontier")
-    # while True:
     publish_cells()
-    # raw_input("Publish")
-    group_frontiers(frontier)
-    return frontier
+
+    # Group the frontier cells into continuous frontiers and return them as a list
+    groups = group_frontiers(frontier)
+
+    # Calculate the centroid of all of the frontiers
+    centroids = map(getCentroid, groups)
+
+    for cell in centroids:
+        publish_cell(cell.getXpos(), cell.getYpos(), "path")
+    publish_cells()
+
+    # Calculate the number of frontier cells in each frontier
+    lengths = map(len, groups)
+
+    # Calculate the distance to each centroid
+    distances = map(distance_to_centroid, centroids)
+
+    # Weight each centroid by its distance * # of frontier cells
+    weighted_centroid = []
+    for i in range(len(distances)):
+        weighted_centroid.append(lengths[i] / distances[i])
+
+    maximum, index = 0, 0
+    for i in range(len(weighted_centroid)):
+        if weighted_centroid[i] > maximum:
+            maximum = weighted_centroid[i]
+            index = i
+
+    nav_goal = centroids[index]
+    print "Nav Goal " + str(nav_goal)
+    print weighted_centroid
+    publish_cell(nav_goal.getXpos(), nav_goal.getYpos(), "expanded")
+    publish_cell(nav_goal.getXpos()+1, nav_goal.getYpos(), "expanded")
+    publish_cell(nav_goal.getXpos()-1, nav_goal.getYpos(), "expanded")
+    publish_cell(nav_goal.getXpos(), nav_goal.getYpos()+1, "expanded")
+    publish_cell(nav_goal.getXpos(), nav_goal.getYpos()-1, "expanded")
+    publish_cells()
+
+
+
+def distance_to_centroid(centroid_cell):
+    return math.sqrt((centroid_cell.getXpos() - x_cell)**2 + (centroid_cell.getYpos() - y_cell)**2)
 
 
 def get_neighboring_cells(cell):
+    '''
+    :param cell: The cell, whose neighbors are needed
+    :return: A list of cells neightobring cell
+    '''
     neighbors = []
 
     x_pos = cell.getXpos()
@@ -69,8 +154,6 @@ def is_frontier_cell(cell):
 
 
 def group_frontiers(ungrouped_frontier):
-    print "Printing grouped frontiers"
-    print len(ungrouped_frontier)
     frontiers = []
 
     while len(ungrouped_frontier) != 0:
@@ -89,10 +172,9 @@ def group_frontiers(ungrouped_frontier):
                 # Finished finding the frontier. Add it to the frontiers list.
                 done = True
                 frontiers.append(frontier)
-            except:
+            except: # Using this as a break loop statement
                 pass
 
-    print len(frontiers)
     return frontiers
 
 
@@ -332,7 +414,6 @@ def publish_frontier():
     Publishes the information stored in unexplored_cells to the map
     """
     global pub_frontier
-    print "publishing..."
 
     # Information all GridCells messages will use
     msg = GridCells()
