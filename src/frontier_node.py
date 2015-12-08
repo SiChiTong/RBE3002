@@ -6,6 +6,7 @@ import rospy
 import tf
 from actionlib_msgs.msg import GoalID, GoalStatusArray
 from geometry_msgs.msg import Point, PoseStamped
+from map_msgs.msg import OccupancyGridUpdate
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
 from GridCell import GridCell
@@ -229,16 +230,11 @@ def map_handler(msg):
     global map_width, map_height, occupancyGrid, x_offset, y_offset
     global map_origin_x, map_origin_y, costMap
     global path_cells, wall_cells, frontier_cells, expanded_cells
-    global last_map
 
     map_width = msg.info.width
     map_height = msg.info.height
     occupancyGrid = msg.data
-    if occupancyGrid == last_map:
-        print "Same map, ignoring..."
-        return
     print "Map (width, height): " + str(map_width) + " " + str(map_height)
-    last_map = occupancyGrid
 
     CELL_WIDTH = msg.info.resolution
     CELL_HEIGHT = msg.info.resolution
@@ -273,6 +269,42 @@ def map_handler(msg):
     detect_frontiers()
 
 
+def map_update_handler(msg):
+    """
+    Handles when a new local map message arrives.
+    :param msg: The map message to process.
+    """
+    global CELL_WIDTH, CELL_HEIGHT
+    global map_width, map_height
+    global map_origin_x, map_origin_y, costMap, wall_cells
+
+    local_map_width = msg.width
+    local_map_height = msg.height
+    local_occupancy_grid = msg.data
+    local_origin_x = msg.x
+    local_origin_y = msg.y
+    # iterating through every position in the matrix
+    # OccupancyGrid is in row-major order
+    # Items in rows are displayed in contiguous memory
+    count = 0
+    x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
+    for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
+        for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
+            if local_occupancy_grid[count] != 0:
+                costMap[x_tmp][y_tmp] = 1
+                local_occupancy_grid[count] = 1
+                # costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
+            count += 1
+    wall_cells = []
+    for y_tmp in range(0, map_height):
+        for x_tmp in range(0, map_width):
+            index = y_tmp * map_width + x_tmp
+            if occupancyGrid[index] > 30:
+                publish_cell(x_tmp, y_tmp, 'wall')
+    publish_walls()
+    detect_frontiers()
+
+
 def local_map_handler(msg):
     """
     Handles when a new local map message arrives.
@@ -280,7 +312,7 @@ def local_map_handler(msg):
     """
     global CELL_WIDTH, CELL_HEIGHT
     global map_width, map_height
-    global map_origin_x, map_origin_y, costMap
+    global map_origin_x, map_origin_y, costMap, wall_cells
 
     local_map_width = msg.info.width
     local_map_height = msg.info.height
@@ -305,6 +337,13 @@ def local_map_handler(msg):
                 if local_occupancy_grid[count] != 0:
                     costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
                 count += 1
+        wall_cells = []
+        for y_tmp in range(0, map_height):
+            for x_tmp in range(0, map_width):
+                index = y_tmp * map_width + x_tmp
+                if occupancyGrid[index] > 30:
+                    publish_cell(x_tmp, y_tmp, 'wall')
+        publish_walls()
     except:
         print "Map not ready yet."
 
@@ -477,7 +516,6 @@ def move_status_handler(msg):
                     print "Goal unreachable or other error."
 
 
-
 def go_to_next_centroid():
     nav_goal_pose = PoseStamped()
     nav_goal_pose.header.frame_id = 'map'
@@ -497,14 +535,18 @@ if __name__ == '__main__':
     rospy.init_node('rbe_3002_frontier_node')
     goal_done = True
 
+    move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
+    pub_walls = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
+    pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
+    pub_path = rospy.Publisher('/path_cells', GridCells, queue_size=1)
+    pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
+
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
 
     # Subscribe to the global map
-    # rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
-    # Request the global costmap every 5 seconds
-    last_map = []
-    rospy.Timer(rospy.Duration(5), request_map)
+    rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
+    rospy.Subscriber('/move_base/global_costmap/costmap_updates', OccupancyGridUpdate, map_update_handler)
 
     # Subscribe to the local map
     rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
@@ -515,15 +557,9 @@ if __name__ == '__main__':
     # Create Odemetry listener and boadcaster
     odom_list = tf.TransformListener()
 
-    pub_walls = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
-    pub_expanded = rospy.Publisher('/expanded_cells', GridCells, queue_size=1)
-    pub_path = rospy.Publisher('/path_cells', GridCells, queue_size=1)
-    pub_frontier = rospy.Publisher('/frontier_cells', GridCells, queue_size=1)
-
     # Configure move base action library.
     move_base = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     move_base.wait_for_server(rospy.Duration(5))
-    move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
     # Subscribe to move base status.
     move_base_status = rospy.Subscriber('/move_base/status', GoalStatusArray, move_status_handler)
 
