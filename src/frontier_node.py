@@ -475,6 +475,7 @@ def move_status_handler(msg):
                 elif 4 <= goal.status <= 5:  # Goal unreachable or rejected
                     goal_done = True
                     print "Goal unreachable or other error."
+                    go_to_next_centroid()
 
 
 
@@ -500,15 +501,6 @@ if __name__ == '__main__':
     # Subscribe to Odometry changes
     rospy.Subscriber('/odom', Odometry, odom_handler)
 
-    # Subscribe to the global map
-    # rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
-    # Request the global costmap every 5 seconds
-    last_map = []
-    rospy.Timer(rospy.Duration(5), request_map)
-
-    # Subscribe to the local map
-    rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
-
     # Subscribe to the navgoal.
     rospy.Subscriber('/navgoal', PoseStamped, nav_to_pose)
 
@@ -526,5 +518,17 @@ if __name__ == '__main__':
     move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
     # Subscribe to move base status.
     move_base_status = rospy.Subscriber('/move_base/status', GoalStatusArray, move_status_handler)
+
+    # Subscribe to the global map
+    rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
+    # Request the global costmap every 5 seconds
+    last_map = []
+
+    # Subscribe to the local map
+    rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
+
+    rospy.sleep(rospy.Duration(5,0))
+    go_to_next_centroid()
+    rospy.Timer(rospy.Duration(5), request_map)
 
     rospy.spin()
