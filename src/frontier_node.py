@@ -291,9 +291,7 @@ def map_update_handler(msg):
     for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
         for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
             if local_occupancy_grid[count] != 0:
-                costMap[x_tmp][y_tmp] = 1
-                local_occupancy_grid[count] = 1
-                # costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
+                costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
             count += 1
     wall_cells = []
     for y_tmp in range(0, map_height):
