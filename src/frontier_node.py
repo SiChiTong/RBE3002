@@ -74,12 +74,16 @@ def detect_frontiers():
             if is_frontier_cell(cell):
                 frontier.append(cell)
 
-    for cell in frontier:
-        publish_cell(cell.getXpos(), cell.getYpos(), "frontier")
-    publish_cells()
-
     # Group the frontier cells into continuous frontiers and return them as a list
     groups = group_frontiers(frontier)
+
+    groups = filter(lambda list: len(list) >= 5, groups)
+
+    for frontier in groups:
+        for cell in frontier:
+            publish_cell(cell.getXpos(), cell.getYpos(), "frontier")
+    for i in range(10):
+        publish_cells()
 
     # Calculate the centroid of all of the frontiers
     centroids = map(get_centroid, groups)
@@ -248,14 +252,6 @@ def map_handler(msg):
     map_origin_y = msg.info.origin.position.y
     print "Map origin: ", map_origin_x, map_origin_y
 
-    wall_cells = []
-    for y_tmp in range(0, map_height):
-        for x_tmp in range(0, map_width):
-            index = y_tmp * map_width + x_tmp
-            if occupancyGrid[index] > 30:
-                publish_cell(x_tmp, y_tmp, 'wall')
-    publish_walls()
-
     # Create the costMap
     costMap = [[0 for j in range(map_height)] for j in range(map_width)]
 
@@ -269,99 +265,21 @@ def map_handler(msg):
             costMap[x_tmp][y_tmp] = GridCell(x_tmp, y_tmp, occupancyGrid[count])  # creates all the gridCells
             count += 1
     expand_objects()
-    detect_frontiers()
-
-
-
-def map_update_handler(msg):
-    """
-    Handles when a new cost map update arrives.
-    :param msg: The map message to process.
-    """
-    global CELL_WIDTH, CELL_HEIGHT
-    global map_width, map_height
-    global map_origin_x, map_origin_y, costMap, wall_cells
-
-    local_map_width = msg.width
-    local_map_height = msg.height
-    local_occupancy_grid = msg.data
-    local_origin_x = msg.x
-    local_origin_y = msg.y
-    # iterating through every position in the matrix
-    # OccupancyGrid is in row-major order
-    # Items in rows are displayed in contiguous memory
-    count = 0
-    x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
-    for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
-        for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
-            if local_occupancy_grid[count] != 0:
-                try:
-                    costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
-                except IndexError:
-                    pass  # if this happens, cost map update has an absurd x,y position
-            count += 1
-    wall_cells = []
-    for y_tmp in range(0, map_height):
-        for x_tmp in range(0, map_width):
-            index = y_tmp * map_width + x_tmp
-            if occupancyGrid[index] > 30:
-                publish_cell(x_tmp, y_tmp, 'wall')
     publish_walls()
     detect_frontiers()
 
-
-def local_map_handler(msg):
-    """
-    Handles when a new local map message arrives.
-    :param msg: The map message to process.
-    """
-    global CELL_WIDTH, CELL_HEIGHT
-    global map_width, map_height
-    global map_origin_x, map_origin_y, costMap, wall_cells
-
-    local_map_width = msg.info.width
-    local_map_height = msg.info.height
-    local_occupancy_grid = msg.data
-    # print "Local dimensions: ", local_map_width, local_map_height
-
-    local_origin_x = msg.info.origin.position.x
-    local_origin_y = msg.info.origin.position.y
-    try:
-        (position, orientation) = odom_list.lookupTransform('odom', 'map', rospy.Time(0))
-        local_origin_x += position[0]
-        local_origin_y += position[1]
-        # print "Map origin: ", local_origin_x, local_origin_y
-
-        # iterating through every position in the matrix
-        # OccupancyGrid is in row-major order
-        # Items in rows are displayed in contiguous memory
-        count = 0
-        x_cell_start, y_cell_start = map_to_grid(local_origin_x, local_origin_y)
-        for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
-            for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
-                if local_occupancy_grid[count] != 0:
-                    costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
-                count += 1
-        wall_cells = []
-        for y_tmp in range(0, map_height):
-            for x_tmp in range(0, map_width):
-                index = y_tmp * map_width + x_tmp
-                if occupancyGrid[index] > 30:
-                    publish_cell(x_tmp, y_tmp, 'wall')
-        publish_walls()
-    except:
-        print "Map not ready yet."
-        
 
 def expand_objects():
     global costMap
     for y_tmp in range(0, map_height):  # Rows
         for x_tmp in range(0, map_width):  # Columns
-            if costMap[x_tmp][y_tmp].getOccupancyLevel == 100:
-                for y in range (y_tmp - 5, y_tmp + 6):
-                    for x in range (x_tmp - 5, x_tmp + 6):
+            if costMap[x_tmp][y_tmp].getOccupancyLevel() > 90:
+                for y_tmp_2 in range (y_tmp - 5, y_tmp + 6):
+                    for x_tmp_2 in range (x_tmp - 5, x_tmp + 6):
+                        if math.sqrt((y_tmp_2 - y_tmp)**2 + (x_tmp_2 - x_tmp)**2) > 5:
+                            continue
                         try:
-                            costMap[x][y].setOccupancyLevel(90)
+                            costMap[x_tmp_2][y_tmp_2].setOccupancyLevel(60)
                         except IndexError:
                             pass
 
@@ -447,7 +365,13 @@ def publish_walls():
     """
     Publishes the information stored in frontier_cells to the map
     """
-    global pub_walls
+    global pub_walls, costMap, wall_cells
+
+    wall_cells = []
+    for y_tmp in range(0, map_height):
+        for x_tmp in range(0, map_width):
+            if not costMap[x_tmp][y_tmp].isEmpty():
+                publish_cell(x_tmp, y_tmp, 'wall')
 
     # Information all GridCells messages will use
     msg = GridCells()
@@ -575,15 +499,13 @@ if __name__ == '__main__':
     # Subscribe to move base status.
     move_base_status = rospy.Subscriber('/move_base/status', GoalStatusArray, move_status_handler)
 
-    # Subscribe to the global map
-    rospy.Subscriber('/move_base/global_costmap/costmap', OccupancyGrid, map_handler)
-    rospy.Subscriber('/move_base/global_costmap/costmap_updates', OccupancyGridUpdate, map_update_handler)
     # Request the global costmap every 5 seconds
     last_map = []
 
     # Subscribe to the local map
     # rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
 
+    request_map(None)
     rospy.sleep(rospy.Duration(5,0))
     go_to_next_centroid()
     rospy.Timer(rospy.Duration(5), request_map)
