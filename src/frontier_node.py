@@ -268,8 +268,9 @@ def map_handler(msg):
         for x_tmp in range(0, map_width):  # Columns
             costMap[x_tmp][y_tmp] = GridCell(x_tmp, y_tmp, occupancyGrid[count])  # creates all the gridCells
             count += 1
-
+    expand_objects()
     detect_frontiers()
+
 
 
 def map_update_handler(msg):
@@ -350,6 +351,19 @@ def local_map_handler(msg):
         publish_walls()
     except:
         print "Map not ready yet."
+        
+
+def expand_objects():
+    global costMap
+    for y_tmp in range(0, map_height):  # Rows
+        for x_tmp in range(0, map_width):  # Columns
+            if costMap[x_tmp][y_tmp].getOccupancyLevel == 100:
+                for y in range (y_tmp - 5, y_tmp + 6):
+                    for x in range (x_tmp - 5, x_tmp + 6):
+                        try:
+                            costMap[x][y].setOccupancyLevel(90)
+                        except IndexError:
+                            pass
 
 
 def map_to_grid(global_x, global_y):
