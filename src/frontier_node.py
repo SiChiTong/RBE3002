@@ -525,7 +525,7 @@ if __name__ == '__main__':
     last_map = []
 
     # Subscribe to the local map
-    rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
+    # rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
 
     rospy.sleep(rospy.Duration(5,0))
     go_to_next_centroid()
