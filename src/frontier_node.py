@@ -96,8 +96,11 @@ def detect_frontiers():
 
     # Weight each centroid by its distance * # of frontier cells
     weighted_centroid = []
-    for i in range(len(distances)):
-        weighted_centroid.append(lengths[i] / distances[i])
+    try:
+        for i in range(len(distances)):
+            weighted_centroid.append(lengths[i] / distances[i])
+    except ZeroDivisionError:
+        print "An Distances to centroids is 0 for some reason!"
 
     maximum, index = 0, 0
     for i in range(len(weighted_centroid)):
@@ -271,7 +274,7 @@ def map_handler(msg):
 
 def map_update_handler(msg):
     """
-    Handles when a new local map message arrives.
+    Handles when a new cost map update arrives.
     :param msg: The map message to process.
     """
     global CELL_WIDTH, CELL_HEIGHT
@@ -291,7 +294,10 @@ def map_update_handler(msg):
     for y_tmp in range(y_cell_start, y_cell_start + local_map_height):  # Rows
         for x_tmp in range(x_cell_start, x_cell_start + local_map_width):  # Columns
             if local_occupancy_grid[count] != 0:
-                costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
+                try:
+                    costMap[x_tmp][y_tmp].setOccupancyLevel(local_occupancy_grid[count])
+                except IndexError:
+                    pass  # if this happens, cost map update has an absurd x,y position
             count += 1
     wall_cells = []
     for y_tmp in range(0, map_height):
