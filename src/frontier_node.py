@@ -66,7 +66,7 @@ def detect_frontiers():
     Detect frontiers in a map.
     :return: A list of frontiers, where each frontier is a list of connected frontier cells
     """
-    global nav_goal, unreachable
+    global nav_goal, unreachable, centroids
     frontier = []
 
     # Iterate through all of the cells in the global map and collect all the possible frontier cells
@@ -115,7 +115,11 @@ def detect_frontiers():
 
     # The most heavily weighted centroid
     if not unreachable:
+        old_nav_goal = nav_goal
         nav_goal = centroids[index]
+        if old_nav_goal != nav_goal and nav_goal is not None:  # Change goal if better goal appears.
+            cancel_navigation()
+            print "Better goal available, canceling current..."
     else:
         nav_goal = centroids[random.randint(0, len(centroids)-1)]
         unreachable = False
@@ -504,10 +508,11 @@ def check_goal(event):
 
 if __name__ == '__main__':
     global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map, move_base_cancel
-    global goal_done, unreachable
+    global goal_done, unreachable, nav_goal
     rospy.init_node('rbe_3002_frontier_node')
     goal_done = True
     unreachable = False
+    nav_goal = None
 
     move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
     pub_walls = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
@@ -537,7 +542,7 @@ if __name__ == '__main__':
     # rospy.Subscriber('/move_base/local_costmap/costmap', OccupancyGrid, local_map_handler)
 
     request_map(None)
-    rospy.sleep(rospy.Duration(5,0))
+    rospy.sleep(rospy.Duration(5))
     go_to_next_centroid()
     rospy.Timer(rospy.Duration(5), request_map)
     rospy.Timer(rospy.Duration(1), check_goal)
