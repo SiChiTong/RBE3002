@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import math
+import random
 
 import actionlib
 import rospy
@@ -65,7 +66,7 @@ def detect_frontiers():
     Detect frontiers in a map.
     :return: A list of frontiers, where each frontier is a list of connected frontier cells
     """
-    global nav_goal
+    global nav_goal, unreachable
     frontier = []
 
     # Iterate through all of the cells in the global map and collect all the possible frontier cells
@@ -77,7 +78,7 @@ def detect_frontiers():
     # Group the frontier cells into continuous frontiers and return them as a list
     groups = group_frontiers(frontier)
 
-    groups = filter(lambda list: len(list) >= 5, groups)
+    groups = filter(lambda list: longest_distance(list) >= 10, groups)
 
     for frontier in groups:
         for cell in frontier:
@@ -113,7 +114,11 @@ def detect_frontiers():
             index = i
 
     # The most heavily weighted centroid
-    nav_goal = centroids[index]
+    if not unreachable:
+        nav_goal = centroids[index]
+    else:
+        nav_goal = centroids[random.randint(0, len(centroids)-1)]
+        unreachable = False
 
     print "Nav Goal " + str(nav_goal)
 
@@ -217,7 +222,15 @@ def odom_handler(msg):
         x_cell, y_cell = map_to_grid(x, y)
     except:
         pass
+def longest_distance(frontier):
+    max_dist = 0
 
+    for a in frontier:
+        for b in frontier:
+            dist = math.sqrt((a.getXpos() - b.getXpos())**2 + (a.getYpos() - b.getYpos())**2)
+            if dist > max_dist:
+                max_dist = dist
+    return max_dist
 
 def request_map(event):
     """
@@ -441,7 +454,7 @@ def move_status_handler(msg):
     Handle movement status messages.
     :param msg: The move status message array.
     """
-    global last_active_goal, goal_done
+    global last_active_goal, goal_done, unreachable
     for goal in msg.status_list:
         if goal.status < 2:
             last_active_goal = goal
@@ -456,6 +469,8 @@ def move_status_handler(msg):
                 elif 4 <= goal.status <= 5:  # Goal unreachable or rejected
                     goal_done = True
                     print "Goal unreachable or other error."
+                    unreachable = True
+                    cancel_navigation()
                     go_to_next_centroid()
 
 
@@ -472,11 +487,27 @@ def go_to_next_centroid():
     nav_to_pose(nav_goal_pose)
 
 
+def check_goal(event):
+    """
+    Check if the robot is near its goal.
+    :param event: Timer event.
+    """
+    global x_cell, y_cell, nav_goal
+    x_goal_cell, y_goal_cell = nav_goal.getYpos(), nav_goal.getYpos()
+    print x_goal_cell, y_goal_cell, x_cell, y_cell
+    print math.sqrt((x_goal_cell - x_cell) ** 2 + (y_goal_cell - y_cell) ** 2)
+    if math.sqrt((x_goal_cell - x_cell) ** 2 + (y_goal_cell - y_cell) ** 2) <= 5:
+        print "Close enough..."
+        cancel_navigation()
+        go_to_next_centroid()
+
+
 if __name__ == '__main__':
     global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map, move_base_cancel
-    global goal_done
+    global goal_done, unreachable
     rospy.init_node('rbe_3002_frontier_node')
     goal_done = True
+    unreachable = False
 
     move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
     pub_walls = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
@@ -509,5 +540,6 @@ if __name__ == '__main__':
     rospy.sleep(rospy.Duration(5,0))
     go_to_next_centroid()
     rospy.Timer(rospy.Duration(5), request_map)
+    rospy.Timer(rospy.Duration(1), check_goal)
 
     rospy.spin()
