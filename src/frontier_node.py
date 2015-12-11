@@ -89,6 +89,11 @@ def detect_frontiers():
     # Calculate the centroid of all of the frontiers
     centroids = map(get_centroid, groups)
 
+    if len(centroids) == 0:  # If there are no centroids, quit.
+        print '*****************DONE*****************'
+        cancel_navigation()
+        rospy.spin()
+
     for cell in centroids:
         publish_cell(cell.getXpos(), cell.getYpos(), "path")
     publish_cells()
@@ -235,6 +240,7 @@ def longest_distance(frontier):
             if dist > max_dist:
                 max_dist = dist
     return max_dist
+
 
 def request_map(event):
     """
