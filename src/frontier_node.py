@@ -7,9 +7,8 @@ import rospy
 import tf
 from actionlib_msgs.msg import GoalID, GoalStatusArray
 from geometry_msgs.msg import Point, PoseStamped
-from map_msgs.msg import OccupancyGridUpdate
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from nav_msgs.msg import GridCells, Odometry, OccupancyGrid
+from nav_msgs.msg import GridCells, Odometry
 from GridCell import GridCell
 from nav_msgs.srv import GetMap
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
@@ -66,7 +65,7 @@ def detect_frontiers():
     Detect frontiers in a map.
     :return: A list of frontiers, where each frontier is a list of connected frontier cells
     """
-    global nav_goal, unreachable, centroids
+    global nav_goal, unreachable, centroids, done
     frontier = []
 
     # Iterate through all of the cells in the global map and collect all the possible frontier cells
@@ -78,7 +77,7 @@ def detect_frontiers():
     # Group the frontier cells into continuous frontiers and return them as a list
     groups = group_frontiers(frontier)
 
-    groups = filter(lambda list: longest_distance(list) >= 10, groups)
+    groups = filter(lambda l: longest_distance(l) >= 10, groups)
 
     for frontier in groups:
         for cell in frontier:
@@ -92,7 +91,9 @@ def detect_frontiers():
     if len(centroids) == 0:  # If there are no centroids, quit.
         print '*****************DONE*****************'
         cancel_navigation()
-        rospy.spin()
+        done = True
+        rospy.signal_shutdown("We done.")
+        exit()
 
     for cell in centroids:
         publish_cell(cell.getXpos(), cell.getYpos(), "path")
@@ -497,28 +498,14 @@ def go_to_next_centroid():
     nav_to_pose(nav_goal_pose)
 
 
-def check_goal(event):
-    """
-    Check if the robot is near its goal.
-    :param event: Timer event.
-    """
-    global x_cell, y_cell, nav_goal
-    x_goal_cell, y_goal_cell = nav_goal.getYpos(), nav_goal.getYpos()
-    print x_goal_cell, y_goal_cell, x_cell, y_cell
-    print math.sqrt((x_goal_cell - x_cell) ** 2 + (y_goal_cell - y_cell) ** 2)
-    if math.sqrt((x_goal_cell - x_cell) ** 2 + (y_goal_cell - y_cell) ** 2) <= 5:
-        print "Close enough..."
-        cancel_navigation()
-        go_to_next_centroid()
-
-
 if __name__ == '__main__':
     global odom_list, pub_walls, pub_expanded, pub_path, pub_frontier, last_map, move_base_cancel
-    global goal_done, unreachable, nav_goal
+    global goal_done, unreachable, nav_goal, done
     rospy.init_node('rbe_3002_frontier_node')
     goal_done = True
     unreachable = False
     nav_goal = None
+    done = False
 
     move_base_cancel = rospy.Publisher('/move_base/cancel', GoalID, queue_size=1)
     pub_walls = rospy.Publisher('/wall_cells', GridCells, queue_size=1)
@@ -551,6 +538,5 @@ if __name__ == '__main__':
     rospy.sleep(rospy.Duration(5))
     go_to_next_centroid()
     rospy.Timer(rospy.Duration(5), request_map)
-    rospy.Timer(rospy.Duration(1), check_goal)
 
     rospy.spin()
